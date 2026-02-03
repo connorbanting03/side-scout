@@ -4,15 +4,25 @@ import { useState } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
-import { Player } from './types';
+import TeamDashboard from './components/TeamDashboard';
+import { Player, Team } from './types';
 
 interface PlayerTab {
+  type: 'player';
   player: Player;
   id: string;
 }
 
+interface TeamTab {
+  type: 'team';
+  team: Team;
+  id: string;
+}
+
+type Tab = PlayerTab | TeamTab;
+
 export default function Home() {
-  const [tabs, setTabs] = useState<PlayerTab[]>([]);
+  const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [gameLimit, setGameLimit] = useState(10);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,7 +37,22 @@ export default function Home() {
       return;
     }
 
-    const newTab: PlayerTab = { player, id: tabId };
+    const newTab: PlayerTab = { type: 'player', player, id: tabId };
+    setTabs([...tabs, newTab]);
+    setActiveTab(tabId);
+  };
+
+  const addTeam = (team: Team) => {
+    const tabId = `team-${team.id}`;
+    
+    // Check if team is already in tabs
+    const existingTab = tabs.find(tab => tab.id === tabId);
+    if (existingTab) {
+      setActiveTab(tabId);
+      return;
+    }
+
+    const newTab: TeamTab = { type: 'team', team, id: tabId };
     setTabs([...tabs, newTab]);
     setActiveTab(tabId);
   };
@@ -68,7 +93,7 @@ export default function Home() {
               </select>
             </div>
           </div>
-          <PlayerSearch onSelectPlayer={addPlayer} />
+          <PlayerSearch onSelectPlayer={addPlayer} onSelectTeam={addTeam} />
         </div>
       </header>
 
@@ -94,30 +119,40 @@ export default function Home() {
                     Active Players
                   </h3>
                   <div className="space-y-2">
-                    {tabs.map(tab => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
-                          activeTab === tab.id
-                            ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
-                            : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
-                        }`}
-                      >
-                        <span className="font-medium text-sm truncate">{tab.player.full_name}</span>
+                    {tabs.map(tab => {
+                      const displayName = tab.type === 'player' ? tab.player.full_name : tab.team.full_name;
+                      const badge = tab.type === 'team' ? tab.team.abbreviation : null;
+                      
+                      return (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeTab(tab.id);
-                          }}
-                          className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
-                            activeTab === tab.id ? 'text-white' : 'text-gray-500'
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
+                            activeTab === tab.id
+                              ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
+                              : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
                           }`}
                         >
-                          <X className="w-4 h-4" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{displayName}</div>
+                            {badge && (
+                              <div className="text-xs opacity-75 mt-0.5">{badge}</div>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeTab(tab.id);
+                            }}
+                            className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
+                              activeTab === tab.id ? 'text-white' : 'text-gray-500'
+                            }`}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </button>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}
@@ -129,14 +164,24 @@ export default function Home() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
           <div className="max-w-7xl mx-auto p-8">
-            {activePlayer ? (
-              <PlayerDashboard player={activePlayer.player} gameLimit={gameLimit} />
+            {activeTab ? (
+              tabs.find(tab => tab.id === activeTab)?.type === 'player' ? (
+                <PlayerDashboard 
+                  player={(tabs.find(tab => tab.id === activeTab) as PlayerTab).player} 
+                  gameLimit={gameLimit} 
+                />
+              ) : (
+                <TeamDashboard 
+                  team={(tabs.find(tab => tab.id === activeTab) as TeamTab).team} 
+                  gameLimit={gameLimit} 
+                />
+              )
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="bg-white rounded-2xl p-12 shadow-xl border-2 border-indigo-100 max-w-md">
                   <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-4">Welcome to Side Scout</h2>
                   <p className="text-gray-700 mb-6 text-lg">
-                    Search for an NBA player above to view their stats, trends, and performance analytics.
+                    Search for NBA players or teams to view stats, trends, and performance analytics.
                   </p>
                   <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4">
                     <p className="mb-3 font-semibold text-indigo-700">Features:</p>
@@ -144,7 +189,7 @@ export default function Home() {
                       <li className="flex items-center gap-2"><span className="text-lg">📊</span> Comprehensive stats breakdown</li>
                       <li className="flex items-center gap-2"><span className="text-lg">📈</span> Performance trends and charts</li>
                       <li className="flex items-center gap-2"><span className="text-lg">🏀</span> Game-by-game analysis</li>
-                      <li className="flex items-center gap-2"><span className="text-lg">📑</span> Multi-player comparison tabs</li>
+                      <li className="flex items-center gap-2"><span className="text-lg">📑</span> Multi-player/team comparison tabs</li>
                     </ul>
                   </div>
                 </div>

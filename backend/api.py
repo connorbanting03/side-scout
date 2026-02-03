@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
-from nba_api.stats.endpoints import playercareerstats, commonplayerinfo, playergamelog
-from nba_api.stats.static import players
+from nba_api.stats.endpoints import playercareerstats, commonplayerinfo, playergamelog, teamgamelogs, teamdashboardbygeneralsplits, leaguedashteamstats
+from nba_api.stats.static import players, teams
 from nba_api.live.nba.endpoints import scoreboard
 from flask_cors import CORS
 import pandas as pd
@@ -39,6 +39,28 @@ def search_player():
             player_list = [p for p in all_players if name.lower() in p['full_name'].lower()]
         
         return jsonify({'players': player_list})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/team/search', methods=['GET'])
+def search_team():
+    """Search for a team by name or abbreviation"""
+    name = request.args.get('name')
+    if not name:
+        return jsonify({'error': 'Name parameter required'}), 400
+    
+    try:
+        # Get all teams
+        all_teams = teams.get_teams()
+        
+        # Search by full name, city, nickname, or abbreviation
+        team_list = [t for t in all_teams if 
+                     name.lower() in t['full_name'].lower() or 
+                     name.lower() in t['city'].lower() or 
+                     name.lower() in t['nickname'].lower() or
+                     name.lower() in t['abbreviation'].lower()]
+        
+        return jsonify({'teams': team_list})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -95,6 +117,73 @@ def get_player_games(player_id):
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@app.route('/api/team/<team_id>/games', methods=['GET'])
+def get_team_games(team_id):
+    """Get team game log with stats"""
+    limit = request.args.get('limit', 10, type=int)
+    season = request.args.get('season', '2025-26')
+    
+    try:
+        # Get team game log using correct endpoint
+        from nba_api.stats.endpoints import teamgamelogs
+        
+        # Fetch game logs for the team
+        gamelog = teamgamelogs.TeamGameLogs(team_id_nullable=team_id, season_nullable=season)
+        games_df = gamelog.get_data_frames()[0]
+        
+        # Get last N games
+        last_games = games_df.head(limit)
+        
+        # Calculate averages
+        stats_columns = ['PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 
+                        'FTM', 'FTA', 'FT_PCT', 'REB', 'AST', 'STL', 'BLK', 'TOV', 
+                        'PF', 'PLUS_MINUS']
+        
+        averages = {}
+        for col in stats_columns:
+            if col in last_games.columns:
+                averages[col] = float(last_games[col].mean())
+        
+        # Calculate opponent points - the column might be named differently
+        opp_pts_col = None
+        for col_name in ['OPP_PTS', 'PTS_OPP', 'OPPONENT_PTS']:
+            if col_name in last_games.columns:
+                opp_pts_col = col_name
+                break
+        
+        if opp_pts_col:
+            averages['OPP_PTS'] = float(last_games[opp_pts_col].mean())
+            averages['DEF_RATING'] = averages['OPP_PTS']
+        elif 'PTS' in last_games.columns and 'PLUS_MINUS' in last_games.columns:
+            # Approximate opponent points using team points minus plus/minus
+            last_games = last_games.copy()
+            last_games['OPP_PTS'] = last_games['PTS'] - last_games['PLUS_MINUS']
+            averages['OPP_PTS'] = float(last_games['OPP_PTS'].mean())
+            averages['DEF_RATING'] = averages['OPP_PTS']
+        
+        # Calculate win percentage
+        if 'WL' in last_games.columns:
+            wins = (last_games['WL'] == 'W').sum()
+            averages['WIN_PCT'] = float(wins / len(last_games)) if len(last_games) > 0 else 0.0
+        else:
+            averages['WIN_PCT'] = 0.0
+        
+        # Get team info - find_team_by_id doesn't exist, use get_teams and filter
+        all_teams = teams.get_teams()
+        team_info = next((t for t in all_teams if t['id'] == int(team_id)), None)
+        
+        return jsonify({
+            'games': last_games.to_dict('records'),
+            'averages': averages,
+            'total_games': len(games_df),
+            'team_info': team_info
+        })
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_team_games: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 400
 
 @app.route('/api/scoreboard', methods=['GET'])
 def get_scoreboard():
