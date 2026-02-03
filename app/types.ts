@@ -46,4 +46,6 @@ export interface PlayerGamesData {
     [key: string]: number;
   };
   total_games: number;
+  team?: string | null;
+  jersey?: string | null;
 }

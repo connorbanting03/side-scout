@@ -52,6 +52,27 @@ def get_player_games(player_id):
         gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=season)
         games_df = gamelog.get_data_frames()[0]
         
+        # Get player info for team and jersey number
+        info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+        player_info_dict = info.get_dict()
+        player_data = player_info_dict['resultSets'][0]['rowSet'][0] if player_info_dict['resultSets'][0]['rowSet'] else []
+        
+        # Extract team and jersey from player info
+        # CommonPlayerInfo fields: TEAM_ABBREVIATION is usually around index 17-20, JERSEY is around index 13-14
+        # Let's be more robust and check the headers
+        headers = player_info_dict['resultSets'][0]['headers']
+        
+        team_abbr = None
+        jersey = None
+        
+        if 'TEAM_ABBREVIATION' in headers:
+            team_idx = headers.index('TEAM_ABBREVIATION')
+            team_abbr = player_data[team_idx] if len(player_data) > team_idx else None
+        
+        if 'JERSEY' in headers:
+            jersey_idx = headers.index('JERSEY')
+            jersey = player_data[jersey_idx] if len(player_data) > jersey_idx else None
+        
         # Get last N games
         last_games = games_df.head(limit)
         
@@ -68,7 +89,9 @@ def get_player_games(player_id):
         return jsonify({
             'games': last_games.to_dict('records'),
             'averages': averages,
-            'total_games': len(games_df)
+            'total_games': len(games_df),
+            'team': team_abbr,
+            'jersey': jersey
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 400

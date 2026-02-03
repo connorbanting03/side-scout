@@ -44,7 +44,7 @@ export default function PlayerSearch({ onSelectPlayer }: PlayerSearchProps) {
   return (
     <div className="relative w-full max-w-md">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300 w-5 h-5" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
         <input
           type="text"
           value={query}
@@ -54,7 +54,7 @@ export default function PlayerSearch({ onSelectPlayer }: PlayerSearchProps) {
           }}
           onFocus={() => results.length > 0 && setShowResults(true)}
           placeholder="Search NBA players..."
-          className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/90 backdrop-blur border-0 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-md placeholder-blue-300 text-gray-900 font-medium"
+          className="w-full pl-10 pr-4 py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-base"
         />
       </div>
 

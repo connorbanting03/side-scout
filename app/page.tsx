@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import { Player } from './types';
@@ -15,6 +15,7 @@ export default function Home() {
   const [tabs, setTabs] = useState<PlayerTab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [gameLimit, setGameLimit] = useState(10);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const addPlayer = (player: Player) => {
     const tabId = `player-${player.id}`;
@@ -49,20 +50,21 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white">🏀 Side Scout</h1>
-              <p className="text-sm text-blue-100">NBA Player Analytics Dashboard</p>
+              <h1 className="text-3xl font-bold text-white drop-shadow-lg">🏀 Side Scout</h1>
+              <p className="text-sm text-white font-semibold drop-shadow">NBA Player Analytics Dashboard</p>
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-white font-medium">Last</label>
+              <label className="text-base text-white font-bold drop-shadow">Last</label>
               <select
                 value={gameLimit}
                 onChange={(e) => setGameLimit(Number(e.target.value))}
-                className="px-3 py-2 bg-white/90 backdrop-blur border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 shadow-md font-medium"
+                className="px-4 py-2.5 bg-white border-2 border-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg font-bold text-gray-900 text-base"
               >
                 <option value={5}>5 games</option>
                 <option value={10}>10 games</option>
                 <option value={15}>15 games</option>
                 <option value={20}>20 games</option>
+                <option value={100}>Season</option>
               </select>
             </div>
           </div>
@@ -70,48 +72,63 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-140px)]">
+      <div className="flex h-[calc(100vh-140px)] relative">
         {/* Sidebar with player tabs */}
         {tabs.length > 0 && (
-          <aside className="w-64 bg-gradient-to-b from-white to-slate-50 border-r border-slate-200 overflow-y-auto shadow-lg">
+          <aside className={`${
+            sidebarCollapsed ? 'w-16' : 'w-72'
+          } bg-gradient-to-b from-white to-slate-50 border-r-4 border-indigo-300 overflow-y-auto shadow-2xl transition-all duration-300 flex-shrink-0 relative`}>
+            {/* Collapse button */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="sticky top-2 left-full ml-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 shadow-lg transition-all z-20"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
+
             <div className="p-4">
-              <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
-                Active Players
-              </h3>
-              <div className="space-y-2">
-                {tabs.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
-                      activeTab === tab.id
-                        ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
-                        : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
-                    }`}
-                  >
-                    <span className="font-medium text-sm truncate">{tab.player.full_name}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeTab(tab.id);
-                      }}
-                      className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
-                        activeTab === tab.id ? 'text-white' : 'text-gray-500'
-                      }`}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </button>
-                ))}
-              </div>
+              {!sidebarCollapsed && (
+                <>
+                  <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
+                    Active Players
+                  </h3>
+                  <div className="space-y-2">
+                    {tabs.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
+                          activeTab === tab.id
+                            ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
+                            : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
+                        }`}
+                      >
+                        <span className="font-medium text-sm truncate">{tab.player.full_name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeTab(tab.id);
+                          }}
+                          className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
+                            activeTab === tab.id ? 'text-white' : 'text-gray-500'
+                          }`}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </aside>
         )}
 
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto p-6">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <div className="max-w-7xl mx-auto p-8">
             {activePlayer ? (
               <PlayerDashboard player={activePlayer.player} gameLimit={gameLimit} />
             ) : (
