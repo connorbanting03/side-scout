@@ -1,65 +1,141 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import PlayerSearch from './components/PlayerSearch';
+import PlayerDashboard from './components/PlayerDashboard';
+import { Player } from './types';
+
+interface PlayerTab {
+  player: Player;
+  id: string;
+}
 
 export default function Home() {
+  const [tabs, setTabs] = useState<PlayerTab[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [gameLimit, setGameLimit] = useState(10);
+
+  const addPlayer = (player: Player) => {
+    const tabId = `player-${player.id}`;
+    
+    // Check if player is already in tabs
+    const existingTab = tabs.find(tab => tab.id === tabId);
+    if (existingTab) {
+      setActiveTab(tabId);
+      return;
+    }
+
+    const newTab: PlayerTab = { player, id: tabId };
+    setTabs([...tabs, newTab]);
+    setActiveTab(tabId);
+  };
+
+  const removeTab = (tabId: string) => {
+    const newTabs = tabs.filter(tab => tab.id !== tabId);
+    setTabs(newTabs);
+    
+    if (activeTab === tabId) {
+      setActiveTab(newTabs.length > 0 ? newTabs[0].id : null);
+    }
+  };
+
+  const activePlayer = tabs.find(tab => tab.id === activeTab);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-10 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">🏀 Side Scout</h1>
+              <p className="text-sm text-blue-100">NBA Player Analytics Dashboard</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-white font-medium">Last</label>
+              <select
+                value={gameLimit}
+                onChange={(e) => setGameLimit(Number(e.target.value))}
+                className="px-3 py-2 bg-white/90 backdrop-blur border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 shadow-md font-medium"
+              >
+                <option value={5}>5 games</option>
+                <option value={10}>10 games</option>
+                <option value={15}>15 games</option>
+                <option value={20}>20 games</option>
+              </select>
+            </div>
+          </div>
+          <PlayerSearch onSelectPlayer={addPlayer} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </header>
+
+      <div className="flex h-[calc(100vh-140px)]">
+        {/* Sidebar with player tabs */}
+        {tabs.length > 0 && (
+          <aside className="w-64 bg-gradient-to-b from-white to-slate-50 border-r border-slate-200 overflow-y-auto shadow-lg">
+            <div className="p-4">
+              <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
+                Active Players
+              </h3>
+              <div className="space-y-2">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
+                        : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
+                    }`}
+                  >
+                    <span className="font-medium text-sm truncate">{tab.player.full_name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeTab(tab.id);
+                      }}
+                      className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
+                        activeTab === tab.id ? 'text-white' : 'text-gray-500'
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+        )}
+
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto p-6">
+            {activePlayer ? (
+              <PlayerDashboard player={activePlayer.player} gameLimit={gameLimit} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="bg-white rounded-2xl p-12 shadow-xl border-2 border-indigo-100 max-w-md">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-4">Welcome to Side Scout</h2>
+                  <p className="text-gray-700 mb-6 text-lg">
+                    Search for an NBA player above to view their stats, trends, and performance analytics.
+                  </p>
+                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4">
+                    <p className="mb-3 font-semibold text-indigo-700">Features:</p>
+                    <ul className="text-left space-y-2 inline-block">
+                      <li className="flex items-center gap-2"><span className="text-lg">📊</span> Comprehensive stats breakdown</li>
+                      <li className="flex items-center gap-2"><span className="text-lg">📈</span> Performance trends and charts</li>
+                      <li className="flex items-center gap-2"><span className="text-lg">🏀</span> Game-by-game analysis</li>
+                      <li className="flex items-center gap-2"><span className="text-lg">📑</span> Multi-player comparison tabs</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
