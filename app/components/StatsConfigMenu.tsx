@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, X } from 'lucide-react';
+import Cookies from 'js-cookie';
 
 export interface StatsConfig {
   // Player/Team Basic Stats
   ppg: boolean;
   rpg: boolean;
   apg: boolean;
+  mpg: boolean;
   fgPct: boolean;
   fg3Pct: boolean;
   steals: boolean;
@@ -39,6 +41,7 @@ const DEFAULT_CONFIG: StatsConfig = {
   ppg: true,
   rpg: true,
   apg: true,
+  mpg: true,
   fgPct: true,
   fg3Pct: true,
   steals: true,
@@ -151,6 +154,7 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
                 <CheckboxItem label="Points Per Game (PPG)" configKey="ppg" />
                 <CheckboxItem label="Rebounds Per Game (RPG)" configKey="rpg" />
                 <CheckboxItem label="Assists Per Game (APG)" configKey="apg" />
+                <CheckboxItem label="Minutes Per Game (MPG)" configKey="mpg" />
                 <CheckboxItem label="Field Goal %" configKey="fgPct" />
                 <CheckboxItem label="3-Point %" configKey="fg3Pct" />
                 <CheckboxItem label="Steals" configKey="steals" />
@@ -214,9 +218,9 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
 
 export function useStatsConfig(storageKey: string = 'statsConfig'): [StatsConfig, (config: StatsConfig) => void] {
   const [config, setConfig] = useState<StatsConfig>(() => {
-    // Initialize from localStorage
+    // Initialize from cookies
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(storageKey);
+      const stored = Cookies.get(storageKey);
       if (stored) {
         try {
           return JSON.parse(stored);
@@ -231,7 +235,8 @@ export function useStatsConfig(storageKey: string = 'statsConfig'): [StatsConfig
   const updateConfig = (newConfig: StatsConfig) => {
     setConfig(newConfig);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(newConfig));
+      // Store in cookies with 1 year expiration
+      Cookies.set(storageKey, JSON.stringify(newConfig), { expires: 365 });
     }
   };
 

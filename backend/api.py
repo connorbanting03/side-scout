@@ -127,6 +127,18 @@ def get_player_games(player_id):
         # Get last N games
         last_games = games_df.head(limit)
         
+        # Convert MIN to numeric if it's in string format (e.g., "35:42" -> 35.7)
+        if 'MIN' in last_games.columns:
+            def convert_minutes(min_val):
+                if pd.isna(min_val):
+                    return 0
+                if isinstance(min_val, str) and ':' in min_val:
+                    parts = min_val.split(':')
+                    return float(parts[0]) + float(parts[1]) / 60
+                return float(min_val)
+            
+            last_games['MIN'] = last_games['MIN'].apply(convert_minutes)
+        
         # Calculate averages
         stats_columns = ['PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 
                         'FTM', 'FTA', 'FT_PCT', 'REB', 'AST', 'STL', 'BLK', 'TOV', 

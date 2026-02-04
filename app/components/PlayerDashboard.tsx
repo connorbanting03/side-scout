@@ -272,20 +272,24 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
         {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
         {config.rpg && <StatCard label="RPG" value={data.averages.REB.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'REB') : undefined} />}
         {config.apg && <StatCard label="APG" value={data.averages.AST.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'AST') : undefined} />}
-        {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
+        {config.mpg && data.averages.MIN !== undefined && <StatCard label="MPG" value={data.averages.MIN.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'MIN') : undefined} />}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
         {config.fg3Pct && <StatCard label="3P%" value={`${(data.averages.FG3_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3_PCT') * 100 : undefined} />}
         {config.steals && <StatCard label="Steals" value={data.averages.STL.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'STL') : undefined} />}
         {config.blocks && <StatCard label="Blocks" value={data.averages.BLK.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'BLK') : undefined} />}
-        {config.plusMinus && <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PLUS_MINUS') : undefined} />}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {config.plusMinus && <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PLUS_MINUS') : undefined} />}
         {config.fg3m && <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3M') : undefined} />}
         {config.fgm && <StatCard label="FGM" value={data.averages.FGM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FGM') : undefined} />}
         {config.ftm && <StatCard label="FTM" value={data.averages.FTM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FTM') : undefined} />}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.turnovers && <StatCard label="Turnovers" value={data.averages.TOV.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'TOV') : undefined} />}
       </div>
 
@@ -353,6 +357,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Matchup</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">MIN</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">PTS</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">REB</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">AST</th>
@@ -366,6 +371,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
                 <tr key={idx} className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{game.GAME_DATE}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{game.MATCHUP}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-semibold text-gray-600">{game.MIN ? typeof game.MIN === 'number' ? game.MIN.toFixed(1) : game.MIN : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-base text-center font-bold text-gray-900">{game.PTS}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-base text-center font-semibold text-gray-900">{game.REB}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-base text-center font-semibold text-gray-900">{game.AST}</td>

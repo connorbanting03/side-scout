@@ -115,9 +115,23 @@ export default function Home() {
             <div className="p-4">
               {!sidebarCollapsed && (
                 <>
-                  <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
-                    Active Players
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
+                      Active Players
+                    </h3>
+                    {tabs.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setTabs([]);
+                          setActiveTab(null);
+                        }}
+                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded transition-colors"
+                        title="Clear all tabs"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {tabs.map(tab => {
                       const displayName = tab.type === 'player' ? tab.player.full_name : tab.team.full_name;
@@ -126,16 +140,14 @@ export default function Home() {
                       return (
                         <div
                           key={tab.id}
-                          className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 cursor-pointer ${
                             activeTab === tab.id
                               ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
                               : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
                           }`}
                         >
-                          <div 
-                            className="flex-1 min-w-0 cursor-pointer"
-                            onClick={() => setActiveTab(tab.id)}
-                          >
+                          <div className="flex-1 min-w-0 pointer-events-none">
                             <div className="font-medium text-sm truncate">{displayName}</div>
                             {badge && (
                               <div className="text-xs opacity-75 mt-0.5">{badge}</div>
