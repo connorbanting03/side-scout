@@ -124,16 +124,18 @@ export default function Home() {
                       const badge = tab.type === 'team' ? tab.team.abbreviation : null;
                       
                       return (
-                        <button
+                        <div
                           key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
                           className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
                             activeTab === tab.id
                               ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
                               : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md text-gray-700'
                           }`}
                         >
-                          <div className="flex-1 min-w-0">
+                          <div 
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => setActiveTab(tab.id)}
+                          >
                             <div className="font-medium text-sm truncate">{displayName}</div>
                             {badge && (
                               <div className="text-xs opacity-75 mt-0.5">{badge}</div>
@@ -147,10 +149,11 @@ export default function Home() {
                             className={`ml-2 p-1 rounded hover:bg-black/10 flex-shrink-0 transition-colors ${
                               activeTab === tab.id ? 'text-white' : 'text-gray-500'
                             }`}
+                            aria-label="Remove tab"
                           >
                             <X className="w-4 h-4" />
                           </button>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>

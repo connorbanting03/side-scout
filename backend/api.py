@@ -24,7 +24,7 @@ def get_player_by_id(player_id):
 
 @app.route('/api/player/search', methods=['GET'])
 def search_player():
-    """Search for a player by name"""
+    """Search for a player by name (active players only)"""
     name = request.args.get('name')
     if not name:
         return jsonify({'error': 'Name parameter required'}), 400
@@ -38,7 +38,10 @@ def search_player():
             all_players = players.get_players()
             player_list = [p for p in all_players if name.lower() in p['full_name'].lower()]
         
-        return jsonify({'players': player_list})
+        # Filter to only active players
+        active_players = [p for p in player_list if p.get('is_active', False)]
+        
+        return jsonify({'players': active_players})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -62,6 +65,32 @@ def search_team():
         
         return jsonify({'teams': team_list})
     except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/team/<int:team_id>/players', methods=['GET'])
+def get_team_players(team_id):
+    """Get all active players from a specific team"""
+    try:
+        from nba_api.stats.endpoints import commonteamroster
+        
+        # Get current season roster
+        roster = commonteamroster.CommonTeamRoster(team_id=team_id, season='2025-26')
+        roster_df = roster.get_data_frames()[0]
+        
+        # Convert to list of player objects matching our Player interface
+        players_list = []
+        for _, player in roster_df.iterrows():
+            players_list.append({
+                'id': int(player['PLAYER_ID']),
+                'full_name': player['PLAYER'],
+                'is_active': True  # Current roster players are active
+            })
+        
+        return jsonify({'players': players_list})
+    except Exception as e:
+        print(f"Error getting team players: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/player/<player_id>/games', methods=['GET'])

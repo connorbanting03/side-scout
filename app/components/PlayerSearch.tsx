@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Users, User } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, Users, User, Plus } from 'lucide-react';
 import { Player, Team, SearchResult, isPlayer, isTeam } from '../types';
 
 interface PlayerSearchProps {
@@ -13,9 +13,25 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
   const [query, setQuery] = useState('');
   const [playerResults, setPlayerResults] = useState<Player[]>([]);
   const [teamResults, setTeamResults] = useState<Team[]>([]);
+  const [teamPlayersMap, setTeamPlayersMap] = useState<Map<number, Player[]>>(new Map());
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchType, setSearchType] = useState<'all' | 'players' | 'teams'>('all');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const searchAll = async (searchQuery: string) => {
     if (searchQuery.length < 2) {
@@ -52,6 +68,30 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       
       setPlayerResults(players);
       setTeamResults(teams);
+      
+      // Fetch players for each team found
+      if (teams.length > 0) {
+        const teamPlayersPromises = teams.map(async (team: Team) => {
+          try {
+            const response = await fetch(`http://localhost:5000/api/team/${team.id}/players`);
+            const data = await response.json();
+            return { teamId: team.id, players: data.players || [] };
+          } catch (error) {
+            console.error(`Error fetching players for team ${team.id}:`, error);
+            return { teamId: team.id, players: [] };
+          }
+        });
+        
+        const teamPlayersResults = await Promise.all(teamPlayersPromises);
+        const newTeamPlayersMap = new Map();
+        teamPlayersResults.forEach(({ teamId, players }) => {
+          newTeamPlayersMap.set(teamId, players);
+        });
+        setTeamPlayersMap(newTeamPlayersMap);
+      } else {
+        setTeamPlayersMap(new Map());
+      }
+      
       setShowResults(true);
     } catch (error) {
       console.error('Search error:', error);
@@ -62,26 +102,32 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
     }
   };
 
-  const handleSelectPlayer = (player: Player) => {
+  const handleSelectPlayer = (player: Player, keepOpen: boolean = false) => {
     onSelectPlayer(player);
-    setQuery('');
-    setPlayerResults([]);
-    setTeamResults([]);
-    setShowResults(false);
+    if (!keepOpen) {
+      setQuery('');
+      setPlayerResults([]);
+      setTeamResults([]);
+      setTeamPlayersMap(new Map());
+      setShowResults(false);
+    }
   };
 
-  const handleSelectTeam = (team: Team) => {
+  const handleSelectTeam = (team: Team, keepOpen: boolean = false) => {
     onSelectTeam(team);
-    setQuery('');
-    setPlayerResults([]);
-    setTeamResults([]);
-    setShowResults(false);
+    if (!keepOpen) {
+      setQuery('');
+      setPlayerResults([]);
+      setTeamResults([]);
+      setTeamPlayersMap(new Map());
+      setShowResults(false);
+    }
   };
 
   const hasResults = playerResults.length > 0 || teamResults.length > 0;
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full max-w-md" ref={containerRef}>
       <div className="flex gap-2 mb-2">
         <button
           onClick={() => setSearchType('all')}
@@ -140,19 +186,70 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
                 </span>
               </div>
               {teamResults.map((team) => (
-                <button
+                <div
                   key={team.id}
-                  onClick={() => handleSelectTeam(team)}
-                  className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 flex justify-between items-center border-b border-gray-100 transition-all"
+                  className="w-full px-4 py-3 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 flex justify-between items-center border-b border-gray-100 transition-all group"
                 >
-                  <div>
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => handleSelectTeam(team)}
+                  >
                     <span className="font-bold text-gray-900">{team.full_name}</span>
                     <span className="ml-2 text-xs text-gray-500">({team.abbreviation})</span>
                   </div>
-                </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectTeam(team, true);
+                    }}
+                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                    title="Add to list"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
+          
+          {/* Show team players sections */}
+          {teamResults.map((team) => {
+            const teamPlayers = teamPlayersMap.get(team.id) || [];
+            if (teamPlayers.length === 0) return null;
+            
+            return (
+              <div key={`team-players-${team.id}`}>
+                <div className="px-4 py-2 bg-blue-50/50 border-t border-indigo-200 sticky top-0">
+                  <span className="text-xs text-gray-600 font-bold italic">
+                    {team.abbreviation} Roster ({teamPlayers.length} players)
+                  </span>
+                </div>
+                {teamPlayers.map((player) => (
+                  <div
+                    key={`team-player-${team.id}-${player.id}`}
+                    className="w-full px-6 py-2.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 flex justify-between items-center border-b border-gray-100 transition-all group"
+                  >
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => handleSelectPlayer(player)}
+                    >
+                      <span className="font-medium text-gray-800 text-sm">{player.full_name}</span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectPlayer(player, true);
+                      }}
+                      className="ml-2 p-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                      title="Add to list"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
           
           {playerResults.length > 0 && (
             <div>
@@ -162,16 +259,30 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
                 </span>
               </div>
               {playerResults.map((player) => (
-                <button
+                <div
                   key={player.id}
-                  onClick={() => handleSelectPlayer(player)}
-                  className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 flex justify-between items-center border-b border-gray-100 last:border-b-0 transition-all"
+                  className="w-full px-4 py-3 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 flex justify-between items-center border-b border-gray-100 last:border-b-0 transition-all group"
                 >
-                  <span className="font-medium text-gray-900">{player.full_name}</span>
-                  {player.is_active && (
-                    <span className="text-xs bg-gradient-to-r from-emerald-500 to-green-500 text-white px-2 py-1 rounded-full font-semibold shadow-sm">Active</span>
-                  )}
-                </button>
+                  <div 
+                    className="flex-1 cursor-pointer flex items-center justify-between"
+                    onClick={() => handleSelectPlayer(player)}
+                  >
+                    <span className="font-medium text-gray-900">{player.full_name}</span>
+                    {player.is_active && (
+                      <span className="text-xs bg-gradient-to-r from-emerald-500 to-green-500 text-white px-2 py-1 rounded-full font-semibold shadow-sm">Active</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectPlayer(player, true);
+                    }}
+                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                    title="Add to list"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}

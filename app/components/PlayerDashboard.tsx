@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Settings } from 'lucide-react';
 import { Player, PlayerGamesData } from '../types';
+import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
 
 interface PlayerDashboardProps {
   player: Player;
@@ -12,8 +13,8 @@ interface PlayerDashboardProps {
 
 export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardProps) {
   const [data, setData] = useState<PlayerGamesData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);  const [configOpen, setConfigOpen] = useState(false);
+  const [config, setConfig] = useStatsConfig('playerStatsConfig');  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPlayerData = async () => {
@@ -75,6 +76,14 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
   const fgPctTrend = calculateTrend(data.games, 'FG_PCT');
   const fg3PctTrend = calculateTrend(data.games, 'FG3_PCT');
 
+  // Calculate standard deviation
+  const calculateStdDev = (games: any[], stat: string) => {
+    const values = games.map(g => g[stat]);
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  };
+
   const chartData = data.games.slice().reverse().map((game, idx) => {
     // Extract opponent from MATCHUP (e.g., "GSW vs. LAL" -> "vs LAL" or "GSW @ LAL" -> "@ LAL")
     let opponent = '';
@@ -97,11 +106,16 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
     };
   });
 
-  const StatCard = ({ label, value, trend }: { label: string; value: string | number; trend?: number }) => (
+  const StatCard = ({ label, value, stdDev, trend }: { label: string; value: string | number; stdDev?: number; trend?: number }) => (
     <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-5 shadow-md border-2 border-indigo-200 hover:shadow-lg transition-shadow">
       <div className="text-sm text-indigo-700 font-bold mb-2 uppercase tracking-wide">{label}</div>
       <div className="flex items-end justify-between">
-        <div className="text-3xl font-black text-gray-900">{value}</div>
+        <div>
+          <div className="text-3xl font-black text-gray-900">{value}</div>
+          {stdDev !== undefined && (
+            <div className="text-xs text-gray-500 font-semibold mt-1">±{stdDev.toFixed(1)} SD</div>
+          )}
+        </div>
         {trend !== undefined && (
           <div className={`flex items-center text-base font-bold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
             {trend >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
@@ -179,8 +193,23 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
 
   return (
     <div className="space-y-6">
+      <StatsConfigMenu
+        isOpen={configOpen}
+        onClose={() => setConfigOpen(false)}
+        config={config}
+        onConfigChange={setConfig}
+        isTeam={false}
+      />
+      
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl p-8 text-white shadow-xl relative">
+        <button
+          onClick={() => setConfigOpen(true)}
+          className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all shadow-lg backdrop-blur-sm"
+          title="Configure Stats"
+        >
+          <Settings className="w-6 h-6" />
+        </button>
         <div className="flex items-center gap-3 mb-2">
           <h2 className="text-4xl font-bold drop-shadow-lg">{player.full_name}</h2>
           {data.team && (
@@ -201,6 +230,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       </div>
 
       {/* Trend Analysis Section */}
+      {config.performanceTrends && (
       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-300">
         <div className="flex items-center gap-3 mb-6">
           <TrendingUp className="w-7 h-7 text-indigo-600" />
@@ -235,36 +265,38 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           />
         </div>
       </div>
+      )}
 
       {/* Key Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} />
-        <StatCard label="RPG" value={data.averages.REB.toFixed(1)} />
-        <StatCard label="APG" value={data.averages.AST.toFixed(1)} />
-        <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} />
+        {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
+        {config.rpg && <StatCard label="RPG" value={data.averages.REB.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'REB') : undefined} />}
+        {config.apg && <StatCard label="APG" value={data.averages.AST.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'AST') : undefined} />}
+        {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="3P%" value={`${(data.averages.FG3_PCT * 100).toFixed(1)}%`} />
-        <StatCard label="Steals" value={data.averages.STL.toFixed(1)} />
-        <StatCard label="Blocks" value={data.averages.BLK.toFixed(1)} />
-        <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} />
+        {config.fg3Pct && <StatCard label="3P%" value={`${(data.averages.FG3_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3_PCT') * 100 : undefined} />}
+        {config.steals && <StatCard label="Steals" value={data.averages.STL.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'STL') : undefined} />}
+        {config.blocks && <StatCard label="Blocks" value={data.averages.BLK.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'BLK') : undefined} />}
+        {config.plusMinus && <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PLUS_MINUS') : undefined} />}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} />
-        <StatCard label="FGM" value={data.averages.FGM.toFixed(1)} />
-        <StatCard label="FTM" value={data.averages.FTM.toFixed(1)} />
-        <StatCard label="Turnovers" value={data.averages.TOV.toFixed(1)} />
+        {config.fg3m && <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3M') : undefined} />}
+        {config.fgm && <StatCard label="FGM" value={data.averages.FGM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FGM') : undefined} />}
+        {config.ftm && <StatCard label="FTM" value={data.averages.FTM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FTM') : undefined} />}
+        {config.turnovers && <StatCard label="Turnovers" value={data.averages.TOV.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'TOV') : undefined} />}
       </div>
 
       {/* Points Trend */}
+      {config.scoringTrend && (
       <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
         <h3 className="text-xl font-bold mb-6 text-gray-900">Scoring Trend</h3>
         <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 40 }}>
+          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} />
+            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
             <YAxis />
             <Tooltip />
             <Legend />
@@ -272,14 +304,16 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Stats Distribution */}
+      {config.statsDistribution && (
       <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
         <h3 className="text-xl font-bold mb-6 text-gray-900">Per Game Stats</h3>
         <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 40 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} />
+            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
             <YAxis />
             <Tooltip />
             <Legend />
@@ -289,14 +323,16 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Shooting Percentages */}
+      {config.shootingEfficiency && (
       <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
         <h3 className="text-xl font-bold mb-6 text-gray-900">Shooting Efficiency</h3>
         <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 40 }}>
+          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} />
+            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
             <YAxis domain={[0, 100]} />
             <Tooltip />
             <Legend />
@@ -305,8 +341,10 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Recent Games Table */}
+      {config.recentGamesTable && (
       <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border-2 border-indigo-200 overflow-hidden">
         <h3 className="text-xl font-bold p-6 pb-4 text-gray-900">Recent Games</h3>
         <div className="overflow-x-auto">
@@ -342,6 +380,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
