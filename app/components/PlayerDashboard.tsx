@@ -268,28 +268,19 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       )}
 
       {/* Key Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
         {config.rpg && <StatCard label="RPG" value={data.averages.REB.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'REB') : undefined} />}
         {config.apg && <StatCard label="APG" value={data.averages.AST.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'AST') : undefined} />}
         {config.mpg && data.averages.MIN !== undefined && <StatCard label="MPG" value={data.averages.MIN.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'MIN') : undefined} />}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
         {config.fg3Pct && <StatCard label="3P%" value={`${(data.averages.FG3_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3_PCT') * 100 : undefined} />}
         {config.steals && <StatCard label="Steals" value={data.averages.STL.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'STL') : undefined} />}
         {config.blocks && <StatCard label="Blocks" value={data.averages.BLK.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'BLK') : undefined} />}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.plusMinus && <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PLUS_MINUS') : undefined} />}
         {config.fg3m && <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3M') : undefined} />}
         {config.fgm && <StatCard label="FGM" value={data.averages.FGM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FGM') : undefined} />}
         {config.ftm && <StatCard label="FTM" value={data.averages.FTM.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FTM') : undefined} />}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.turnovers && <StatCard label="Turnovers" value={data.averages.TOV.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'TOV') : undefined} />}
       </div>
 

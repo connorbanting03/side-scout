@@ -273,21 +273,15 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       )}
 
       {/* Key Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
         {config.oppPpg && <StatCard label="Opp PPG" value={data.averages.OPP_PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'OPP_PTS') : undefined} />}
         {config.winPct && <StatCard label="Win %" value={`${(data.averages.WIN_PCT * 100).toFixed(1)}%`} />}
         {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.rpg && <StatCard label="RPG" value={data.averages.REB.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'REB') : undefined} />}
         {config.apg && <StatCard label="APG" value={data.averages.AST.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'AST') : undefined} />}
         {config.fg3Pct && <StatCard label="3P%" value={`${(data.averages.FG3_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3_PCT') * 100 : undefined} />}
         {config.plusMinus && <StatCard label="+/-" value={data.averages.PLUS_MINUS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PLUS_MINUS') : undefined} />}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {config.steals && <StatCard label="Steals" value={data.averages.STL.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'STL') : undefined} />}
         {config.blocks && <StatCard label="Blocks" value={data.averages.BLK.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'BLK') : undefined} />}
         {config.fg3m && <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3M') : undefined} />}
