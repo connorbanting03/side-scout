@@ -147,10 +147,19 @@ def get_player_games(player_id):
         averages = {}
         for col in stats_columns:
             if col in last_games.columns:
-                averages[col] = float(last_games[col].mean())
+                mean_val = last_games[col].mean()
+                # Replace NaN with 0 to avoid JSON serialization issues
+                averages[col] = 0.0 if pd.isna(mean_val) else float(mean_val)
+        
+        # Convert games to dict and replace NaN values
+        games_dict = last_games.to_dict('records')
+        for game in games_dict:
+            for key, value in game.items():
+                if pd.isna(value):
+                    game[key] = None
         
         return jsonify({
-            'games': last_games.to_dict('records'),
+            'games': games_dict,
             'averages': averages,
             'total_games': len(games_df),
             'team': team_abbr,
@@ -184,7 +193,9 @@ def get_team_games(team_id):
         averages = {}
         for col in stats_columns:
             if col in last_games.columns:
-                averages[col] = float(last_games[col].mean())
+                mean_val = last_games[col].mean()
+                # Replace NaN with 0 to avoid JSON serialization issues
+                averages[col] = 0.0 if pd.isna(mean_val) else float(mean_val)
         
         # Calculate opponent points - the column might be named differently
         opp_pts_col = None
@@ -194,13 +205,15 @@ def get_team_games(team_id):
                 break
         
         if opp_pts_col:
-            averages['OPP_PTS'] = float(last_games[opp_pts_col].mean())
+            opp_mean = last_games[opp_pts_col].mean()
+            averages['OPP_PTS'] = 0.0 if pd.isna(opp_mean) else float(opp_mean)
             averages['DEF_RATING'] = averages['OPP_PTS']
         elif 'PTS' in last_games.columns and 'PLUS_MINUS' in last_games.columns:
             # Approximate opponent points using team points minus plus/minus
             last_games = last_games.copy()
             last_games['OPP_PTS'] = last_games['PTS'] - last_games['PLUS_MINUS']
-            averages['OPP_PTS'] = float(last_games['OPP_PTS'].mean())
+            opp_mean = last_games['OPP_PTS'].mean()
+            averages['OPP_PTS'] = 0.0 if pd.isna(opp_mean) else float(opp_mean)
             averages['DEF_RATING'] = averages['OPP_PTS']
         
         # Calculate win percentage
@@ -214,8 +227,15 @@ def get_team_games(team_id):
         all_teams = teams.get_teams()
         team_info = next((t for t in all_teams if t['id'] == int(team_id)), None)
         
+        # Convert games to dict and replace NaN values
+        games_dict = last_games.to_dict('records')
+        for game in games_dict:
+            for key, value in game.items():
+                if pd.isna(value):
+                    game[key] = None
+        
         return jsonify({
-            'games': last_games.to_dict('records'),
+            'games': games_dict,
             'averages': averages,
             'total_games': len(games_df),
             'team_info': team_info
