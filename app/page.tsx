@@ -71,7 +71,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-10 shadow-lg">
+      <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-30 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -106,7 +106,7 @@ export default function Home() {
             {/* Collapse button */}
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="sticky top-2 left-full ml-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 shadow-lg transition-all z-20"
+              className="sticky top-2 left-full ml-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 shadow-lg transition-all z-[5]"
               title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

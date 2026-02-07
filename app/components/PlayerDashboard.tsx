@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { TrendingUp, TrendingDown, Activity, Settings } from 'lucide-react';
 import { Player, PlayerGamesData } from '../types';
 import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
+import LiveGameSection from './LiveGameSection';
 
 interface PlayerDashboardProps {
   player: Player;
@@ -229,6 +230,11 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
         </div>
       </div>
 
+      {/* Live Game Section */}
+      {config.liveGame && (
+        <LiveGameSection entityType="player" entityId={player.id} />
+      )}
+
       {/* Trend Analysis Section */}
       {config.performanceTrends && (
       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-300">
@@ -358,9 +364,12 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {data.games.slice(0, 10).map((game, idx) => (
+              {data.games.slice(0, 10).map((game, idx) => {
+                const gameDate = new Date(game.GAME_DATE);
+                const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                return (
                 <tr key={idx} className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{game.GAME_DATE}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formattedDate}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{game.MATCHUP}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-semibold text-gray-600">{game.MIN ? typeof game.MIN === 'number' ? game.MIN.toFixed(1) : game.MIN : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-base text-center font-bold text-gray-900">{game.PTS}</td>
@@ -372,7 +381,8 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
                     {game.PLUS_MINUS > 0 ? '+' : ''}{game.PLUS_MINUS}
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

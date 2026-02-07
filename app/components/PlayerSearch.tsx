@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, Users, User, Plus } from 'lucide-react';
+import { Search, Users, User, Plus, X } from 'lucide-react';
 import { Player, Team, SearchResult, isPlayer, isTeam } from '../types';
 
 interface PlayerSearchProps {
@@ -172,12 +172,27 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
           }}
           onFocus={() => hasResults && setShowResults(true)}
           placeholder={`Search ${searchType === 'all' ? 'players & teams' : searchType}...`}
-          className="w-full pl-10 pr-4 py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-base"
+          className="w-full pl-10 pr-12 py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-base"
         />
+        {query && (
+          <button
+            onClick={() => {
+              setQuery('');
+              setPlayerResults([]);
+              setTeamResults([]);
+              setTeamPlayersMap(new Map());
+              setShowResults(false);
+            }}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors z-10"
+            title="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {showResults && hasResults && (
-        <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-2xl border border-indigo-200 max-h-96 overflow-y-auto">
+        <div className="absolute z-20 w-full mt-2 bg-white rounded-lg shadow-2xl border border-indigo-200 max-h-96 overflow-y-auto">
           {teamResults.length > 0 && (
             <div>
               <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-200 sticky top-0">
@@ -290,7 +305,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       )}
 
       {loading && (
-        <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 text-center text-gray-500">
+        <div className="absolute z-20 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 text-center text-gray-500">
           Searching...
         </div>
       )}

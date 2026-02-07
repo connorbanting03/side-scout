@@ -33,6 +33,9 @@ export interface StatsConfig {
   // Trends
   performanceTrends: boolean;
   
+  // Live Game
+  liveGame: boolean;
+  
   // Display Options
   showStdDev: boolean;
 }
@@ -57,7 +60,10 @@ const DEFAULT_CONFIG: StatsConfig = {
   statsDistribution: false,
   shootingEfficiency: false,
   recentGamesTable: true,
-  performanceTrends: true,  showStdDev: true,};
+  performanceTrends: true,
+  liveGame: true,
+  showStdDev: true,
+};
 
 interface StatsConfigMenuProps {
   isOpen: boolean;
@@ -177,6 +183,14 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
                     <CheckboxItem label="Win Percentage" configKey="winPct" />
                   </>
                 )}
+              </div>
+            </div>
+
+            {/* Live Game */}
+            <div className="border-2 border-red-100 rounded-xl p-4 bg-gradient-to-br from-red-50 to-orange-50">
+              <h3 className="text-lg font-bold text-red-900 mb-3">🔴 Live Game</h3>
+              <div className="grid grid-cols-1 gap-2">
+                <CheckboxItem label="Live Game & Matchup History" configKey="liveGame" />
               </div>
             </div>
 
