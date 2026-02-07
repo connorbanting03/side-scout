@@ -230,11 +230,6 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
         </div>
       </div>
 
-      {/* Live Game Section */}
-      {config.liveGame && (
-        <LiveGameSection entityType="player" entityId={player.id} />
-      )}
-
       {/* Trend Analysis Section */}
       {config.performanceTrends && (
       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-300">
@@ -271,6 +266,11 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
           />
         </div>
       </div>
+      )}
+
+      {/* Live Game Section */}
+      {config.liveGame && (
+        <LiveGameSection entityType="player" entityId={player.id} />
       )}
 
       {/* Key Stats Grid */}
