@@ -14,6 +14,7 @@ interface TeamDashboardProps {
 
 export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   const [data, setData] = useState<TeamGamesData | null>(null);
+  const [standings, setStandings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
   const [config, setConfig] = useStatsConfig('teamStatsConfig');
@@ -24,10 +25,19 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:5000/api/team/${team.id}/games?limit=${gameLimit}&season=2025-26`);
-        if (!response.ok) throw new Error('Failed to fetch data');
-        const result = await response.json();
+        const [gamesResponse, standingsResponse] = await Promise.all([
+          fetch(`http://localhost:5000/api/team/${team.id}/games?limit=${gameLimit}&season=2025-26`),
+          fetch(`http://localhost:5000/api/team/${team.id}/standings`)
+        ]);
+        
+        if (!gamesResponse.ok) throw new Error('Failed to fetch games data');
+        const result = await gamesResponse.json();
         setData(result);
+        
+        if (standingsResponse.ok) {
+          const standingsResult = await standingsResponse.json();
+          setStandings(standingsResult);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -228,10 +238,25 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
             {team.abbreviation}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-white font-semibold text-base drop-shadow">
+        <div className="flex items-center gap-2 text-white font-semibold text-base drop-shadow mb-3">
           <Shield className="w-5 h-5" />
           <span>{gameLimit >= 100 ? 'Full Season' : `Last ${gameLimit} Games`} - 2025-26 Season</span>
         </div>
+        {standings && standings.conference && (
+          <div className="flex gap-6 text-sm font-semibold drop-shadow">
+            <div className="bg-white/15 px-3 py-1 rounded-lg backdrop-blur">
+              <span className="opacity-75">{standings.conference}</span> #{standings.conference_rank}
+            </div>
+            {standings.division && (
+              <div className="bg-white/15 px-3 py-1 rounded-lg backdrop-blur">
+                <span className="opacity-75">{standings.division}</span> #{standings.division_rank}
+              </div>
+            )}
+            <div className="bg-white/15 px-3 py-1 rounded-lg backdrop-blur">
+              {standings.wins}-{standings.losses} ({standings.win_pct?.toFixed(3) || '0.000'})
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Trend Analysis Section */}

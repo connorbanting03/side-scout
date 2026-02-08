@@ -246,6 +246,71 @@ def get_team_games(team_id):
         print(f"Error in get_team_games: {error_details}")
         return jsonify({'error': str(e), 'details': error_details}), 400
 
+@app.route('/api/standings', methods=['GET'])
+def get_standings():
+    """Get current NBA standings"""
+    try:
+        from nba_api.stats.endpoints import leaguestandings
+        standings = leaguestandings.LeagueStandings(season='2025-26')
+        standings_dict = standings.get_dict()
+        
+        # Extract standings data
+        headers = standings_dict['resultSets'][0]['headers']
+        rows = standings_dict['resultSets'][0]['rowSet']
+        
+        standings_list = []
+        for row in rows:
+            standing_dict = {}
+            for i, header in enumerate(headers):
+                standing_dict[header] = row[i]
+            standings_list.append(standing_dict)
+        
+        return jsonify({'standings': standings_list})
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_standings: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 400
+
+@app.route('/api/team/<int:team_id>/standings', methods=['GET'])
+def get_team_standings(team_id):
+    """Get specific team's standings info"""
+    try:
+        from nba_api.stats.endpoints import leaguestandings
+        standings = leaguestandings.LeagueStandings(season='2025-26')
+        standings_dict = standings.get_dict()
+        
+        # Extract standings data
+        headers = standings_dict['resultSets'][0]['headers']
+        rows = standings_dict['resultSets'][0]['rowSet']
+        
+        # Find the team's standing
+        for row in rows:
+            standing_dict = {}
+            for i, header in enumerate(headers):
+                standing_dict[header] = row[i]
+            # Match by team ID
+            if standing_dict.get('TEAM_ID') == team_id:
+                return jsonify({
+                    'team_id': team_id,
+                    'wins': standing_dict.get('W'),
+                    'losses': standing_dict.get('L'),
+                    'win_pct': standing_dict.get('W_PCT'),
+                    'conference_rank': standing_dict.get('CONF_RANK'),
+                    'conference': standing_dict.get('CONFERENCE'),
+                    'division': standing_dict.get('DIVISION'),
+                    'division_rank': standing_dict.get('DIVISION_RANK'),
+                    'gb': standing_dict.get('GB'),
+                    'standing_dict': standing_dict
+                })
+        
+        return jsonify({'error': 'Team not found in standings'}), 404
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_team_standings: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 400
+
 @app.route('/api/scoreboard', methods=['GET'])
 def get_scoreboard():
     """Get today's scoreboard"""
