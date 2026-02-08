@@ -195,9 +195,9 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
     const teamScore = game.isHome ? game.homeTeam.score : game.awayTeam.score;
     const oppScore = game.isHome ? game.awayTeam.score : game.homeTeam.score;
     return (
-      <div className="mt-3 bg-indigo-50/60 rounded-xl p-4 border border-indigo-100">
+      <div className="mt-3 bg-indigo-50/60 rounded-xl p-3 md:p-4 border border-indigo-100">
         <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">Current Game Stats</h4>
-        <div className="grid grid-cols-5 md:grid-cols-9 gap-1">
+        <div className="grid grid-cols-4 md:grid-cols-9 gap-1">
           <StatBox label="MIN" value={formatLiveMinutes(stats.minutes)} highlight />
           <StatBox label="PTS" value={stats.points} highlight />
           <StatBox label="REB" value={stats.rebounds} />
@@ -213,7 +213,7 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
   };
 
   const TeamLiveStats = ({ stats }: { stats: LiveTeamStats }) => (
-    <div className="mt-3 bg-indigo-50/60 rounded-xl p-4 border border-indigo-100">
+    <div className="mt-3 bg-indigo-50/60 rounded-xl p-3 md:p-4 border border-indigo-100">
       <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">Current Game Stats</h4>
       <div className="grid grid-cols-4 md:grid-cols-7 gap-1">
         <StatBox label="PTS" value={stats.points} highlight />
@@ -242,7 +242,7 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
     }
 
     return (
-      <div className="mt-3 bg-indigo-50/40 rounded-xl p-4 border border-indigo-100">
+      <div className="mt-3 bg-indigo-50/40 rounded-xl p-3 md:p-4 border border-indigo-100">
         <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">
           Season Series vs {opponentTricode}
           <span className="ml-2 text-xs text-gray-400 font-semibold normal-case">
@@ -250,39 +250,39 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
           </span>
         </h4>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs md:text-sm">
             <thead>
               <tr className="border-b border-indigo-200/60">
-                <th className="px-3 py-2 text-left text-xs font-bold text-indigo-400 uppercase">Date</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-indigo-400 uppercase">Matchup</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">W/L</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">PTS</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">OPP</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">REB</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">AST</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-indigo-400 uppercase">FG</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-left text-xs font-bold text-indigo-400 uppercase">Date</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-left text-xs font-bold text-indigo-400 uppercase">Matchup</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">W/L</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">PTS</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">OPP</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">REB</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">AST</th>
+                <th className="px-2 md:px-3 py-1.5 md:py-2 text-center text-xs font-bold text-indigo-400 uppercase">FG</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-indigo-100/60">
               {history.map((game, idx) => {
                 const gameDate = new Date(game.GAME_DATE);
-                const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return (
                 <tr key={idx} className="hover:bg-indigo-50/60 transition-colors">
-                  <td className="px-3 py-2 text-gray-700 font-semibold whitespace-nowrap">{formattedDate}</td>
-                  <td className="px-3 py-2 text-gray-700 font-semibold whitespace-nowrap">{game.MATCHUP}</td>
-                  <td className="px-3 py-2 text-center">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-gray-700 font-semibold whitespace-nowrap">{formattedDate}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-gray-700 font-semibold whitespace-nowrap">{game.MATCHUP}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center">
+                    <span className={`text-xs font-bold px-1.5 md:px-2 py-0.5 rounded ${
                       game.WL === 'W' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                     }`}>
                       {game.WL}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-gray-900 font-bold">{game.PTS}</td>
-                  <td className="px-3 py-2 text-center text-gray-700 font-semibold">{game.OPP_PTS || '-'}</td>
-                  <td className="px-3 py-2 text-center text-gray-700 font-semibold">{game.REB}</td>
-                  <td className="px-3 py-2 text-center text-gray-700 font-semibold">{game.AST}</td>
-                  <td className="px-3 py-2 text-center text-gray-700 font-semibold">{game.FGM}-{game.FGA}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center text-gray-900 font-bold">{game.PTS}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center text-gray-700 font-semibold">{game.OPP_PTS || '-'}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center text-gray-700 font-semibold">{game.REB}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center text-gray-700 font-semibold">{game.AST}</td>
+                  <td className="px-2 md:px-3 py-1.5 md:py-2 text-center text-gray-700 font-semibold">{game.FGM}-{game.FGA}</td>
                 </tr>
               );
               })}
@@ -297,7 +297,7 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
   const bgAccent = isLive ? 'from-red-50/40 via-white to-indigo-50/30' : isFinal ? 'from-amber-50/30 via-white to-indigo-50/30' : 'from-blue-50/30 via-white to-indigo-50/30';
 
   return (
-    <div className={`bg-gradient-to-br ${bgAccent} rounded-2xl p-6 shadow-lg border-2 ${borderColor} relative overflow-hidden`}>
+    <div className={`bg-gradient-to-br ${bgAccent} rounded-2xl p-4 md:p-6 shadow-lg border-2 ${borderColor} relative overflow-hidden`}>
       {/* Subtle accent stripe for live */}
       {isLive && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-400 via-red-500 to-red-400" />

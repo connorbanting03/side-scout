@@ -109,18 +109,18 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
   });
 
   const StatCard = ({ label, value, stdDev, trend }: { label: string; value: string | number; stdDev?: number; trend?: number }) => (
-    <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-5 shadow-md border-2 border-indigo-200 hover:shadow-lg transition-shadow">
-      <div className="text-sm text-indigo-700 font-bold mb-2 uppercase tracking-wide">{label}</div>
+    <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-3 md:p-5 shadow-md border-2 border-indigo-200 hover:shadow-lg transition-shadow">
+      <div className="text-xs md:text-sm text-indigo-700 font-bold mb-1 md:mb-2 uppercase tracking-wide">{label}</div>
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-3xl font-black text-gray-900">{value}</div>
+          <div className="text-xl md:text-3xl font-black text-gray-900">{value}</div>
           {stdDev !== undefined && (
             <div className="text-xs text-gray-500 font-semibold mt-1">±{stdDev.toFixed(1)} SD</div>
           )}
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center text-base font-bold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {trend >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+          <div className={`flex items-center text-sm md:text-base font-bold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {trend >= 0 ? <TrendingUp className="w-4 h-4 md:w-5 md:h-5" /> : <TrendingDown className="w-4 h-4 md:w-5 md:h-5" />}
             <span className="ml-1">{Math.abs(trend).toFixed(1)}</span>
           </div>
         )}
@@ -160,32 +160,32 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
     };
     
     return (
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-5 shadow-lg border-2 border-indigo-200">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide">{label}</h4>
-          <div className={`p-2 rounded-lg bg-gradient-to-r ${getColorClass()} text-white`}>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-3 md:p-5 shadow-lg border-2 border-indigo-200">
+        <div className="flex items-center justify-between mb-2 md:mb-3">
+          <h4 className="text-xs md:text-sm font-bold text-gray-700 uppercase tracking-wide">{label}</h4>
+          <div className={`p-1.5 md:p-2 rounded-lg bg-gradient-to-r ${getColorClass()} text-white`}>
             {getIcon()}
           </div>
         </div>
         
         <div className="space-y-2">
-          <div className="flex items-baseline gap-2">
-            <span className={`text-3xl font-black ${direction === 'up' ? 'text-emerald-600' : direction === 'down' ? 'text-rose-600' : 'text-gray-600'}`}>
+          <div className="flex items-baseline gap-1 md:gap-2">
+            <span className={`text-xl md:text-3xl font-black ${direction === 'up' ? 'text-emerald-600' : direction === 'down' ? 'text-rose-600' : 'text-gray-600'}`}>
               {trend > 0 ? '+' : ''}{trend.toFixed(1)}%
             </span>
-            <span className="text-sm text-gray-600 font-semibold">
+            <span className="text-xs md:text-sm text-gray-600 font-semibold">
               {direction === 'up' ? 'Trending Up' : direction === 'down' ? 'Trending Down' : 'Stable'}
             </span>
           </div>
           
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+          <div className="grid grid-cols-2 gap-2 md:gap-3 pt-2 md:pt-3 border-t border-gray-200">
             <div>
               <div className="text-xs text-gray-500 font-semibold">Recent Avg</div>
-              <div className="text-lg font-bold text-gray-900">{formatValue(recentAvg)}{unit}</div>
+              <div className="text-base md:text-lg font-bold text-gray-900">{formatValue(recentAvg)}{unit}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 font-semibold">Earlier Avg</div>
-              <div className="text-lg font-bold text-gray-900">{formatValue(olderAvg)}{unit}</div>
+              <div className="text-base md:text-lg font-bold text-gray-900">{formatValue(olderAvg)}{unit}</div>
             </div>
           </div>
         </div>
@@ -204,48 +204,48 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       />
       
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl p-8 text-white shadow-xl relative">
+      <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl p-4 md:p-8 text-white shadow-xl relative">
         <button
           onClick={() => setConfigOpen(true)}
-          className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all shadow-lg backdrop-blur-sm"
+          className="absolute top-3 right-3 md:top-4 md:right-4 p-2 md:p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all shadow-lg backdrop-blur-sm"
           title="Configure Stats"
         >
-          <Settings className="w-6 h-6" />
+          <Settings className="w-5 h-5 md:w-6 md:h-6" />
         </button>
-        <div className="flex items-center gap-3 mb-2">
-          <h2 className="text-4xl font-bold drop-shadow-lg">{player.full_name}</h2>
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2 pr-12">
+          <h2 className="text-2xl md:text-4xl font-bold drop-shadow-lg">{player.full_name}</h2>
           {data.team && (
-            <span className="text-2xl font-bold bg-white/20 px-3 py-1 rounded-lg backdrop-blur">
+            <span className="text-lg md:text-2xl font-bold bg-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-lg backdrop-blur">
               {data.team}
             </span>
           )}
           {data.jersey && (
-            <span className="text-2xl font-bold bg-white/20 px-3 py-1 rounded-lg backdrop-blur">
+            <span className="text-lg md:text-2xl font-bold bg-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-lg backdrop-blur">
               #{data.jersey}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-white font-semibold text-base drop-shadow">
-          <Activity className="w-5 h-5" />
+        <div className="flex items-center gap-2 text-white font-semibold text-sm md:text-base drop-shadow">
+          <Activity className="w-4 h-4 md:w-5 md:h-5" />
           <span>{gameLimit >= 100 ? 'Full Season' : `Last ${gameLimit} Games`} - 2025-26 Season</span>
         </div>
       </div>
 
       {/* Trend Analysis Section */}
       {config.performanceTrends && (
-      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-300">
-        <div className="flex items-center gap-3 mb-6">
-          <TrendingUp className="w-7 h-7 text-indigo-600" />
-          <h3 className="text-2xl font-bold text-gray-900">Performance Trends</h3>
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-4 md:p-6 shadow-xl border-2 border-indigo-300">
+        <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+          <TrendingUp className="w-5 h-5 md:w-7 md:h-7 text-indigo-600" />
+          <h3 className="text-lg md:text-2xl font-bold text-gray-900">Performance Trends</h3>
         </div>
-        <p className="text-sm text-gray-600 mb-6 font-semibold">
+        <p className="text-xs md:text-sm text-gray-600 mb-4 md:mb-6 font-semibold">
           {gameLimit >= 100 
             ? `Comparing recent half of season vs earlier half` 
             : `Comparing recent ${Math.floor(gameLimit / 2)} games vs earlier ${Math.ceil(gameLimit / 2)} games`
           }
         </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <TrendCard 
             label="Scoring" 
             trendData={scoringTrend}
@@ -293,16 +293,16 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
 
       {/* Points Trend */}
       {config.scoringTrend && (
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
-        <h3 className="text-xl font-bold mb-6 text-gray-900">Scoring Trend</h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-3 md:p-6 shadow-lg border-2 border-indigo-200">
+        <h3 className="text-lg md:text-xl font-bold mb-4 md:mb-6 text-gray-900">Scoring Trend</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="PTS" stroke="#3b82f6" strokeWidth={2} name="Points" />
+            <XAxis dataKey="game" tick={{ fontSize: 8, fontWeight: 600 }} interval="preserveStartEnd" angle={0} height={20} />
+            <YAxis tick={{ fontSize: 10 }} width={35} />
+            <Tooltip contentStyle={{ fontSize: '12px' }} />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Line type="monotone" dataKey="PTS" stroke="#3b82f6" strokeWidth={2} name="Points" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -310,15 +310,15 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
 
       {/* Stats Distribution */}
       {config.statsDistribution && (
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
-        <h3 className="text-xl font-bold mb-6 text-gray-900">Per Game Stats</h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-3 md:p-6 shadow-lg border-2 border-indigo-200">
+        <h3 className="text-lg md:text-xl font-bold mb-4 md:mb-6 text-gray-900">Per Game Stats</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
+            <XAxis dataKey="game" tick={{ fontSize: 8, fontWeight: 600 }} interval="preserveStartEnd" angle={0} height={20} />
+            <YAxis tick={{ fontSize: 10 }} width={35} />
+            <Tooltip contentStyle={{ fontSize: '12px' }} />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
             <Bar dataKey="PTS" fill="#3b82f6" name="Points" />
             <Bar dataKey="REB" fill="#10b981" name="Rebounds" />
             <Bar dataKey="AST" fill="#f59e0b" name="Assists" />
@@ -329,17 +329,17 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
 
       {/* Shooting Percentages */}
       {config.shootingEfficiency && (
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-lg border-2 border-indigo-200">
-        <h3 className="text-xl font-bold mb-6 text-gray-900">Shooting Efficiency</h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: data.games.length > 20 ? 20 : 40 }}>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-3 md:p-6 shadow-lg border-2 border-indigo-200">
+        <h3 className="text-lg md:text-xl font-bold mb-4 md:mb-6 text-gray-900">Shooting Efficiency</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" height={data.games.length > 20 ? 20 : 60} style={{ fontSize: '11px', fontWeight: 600 }} interval={0} tick={data.games.length <= 20} />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="FG_PCT" stroke="#8b5cf6" strokeWidth={2} name="FG%" />
-            <Line type="monotone" dataKey="FG3_PCT" stroke="#ec4899" strokeWidth={2} name="3PT%" />
+            <XAxis dataKey="game" tick={{ fontSize: 8, fontWeight: 600 }} interval="preserveStartEnd" angle={0} height={20} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={35} />
+            <Tooltip contentStyle={{ fontSize: '12px' }} />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Line type="monotone" dataKey="FG_PCT" stroke="#8b5cf6" strokeWidth={2} name="FG%" dot={false} />
+            <Line type="monotone" dataKey="FG3_PCT" stroke="#ec4899" strokeWidth={2} name="3PT%" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -348,37 +348,37 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       {/* Recent Games Table */}
       {config.recentGamesTable && (
       <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border-2 border-indigo-200 overflow-hidden">
-        <h3 className="text-xl font-bold p-6 pb-4 text-gray-900">Recent Games</h3>
+        <h3 className="text-lg md:text-xl font-bold p-4 md:p-6 pb-3 md:pb-4 text-gray-900">Recent Games</h3>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-gradient-to-r from-indigo-50 to-blue-50 border-y border-indigo-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Matchup</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">MIN</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">PTS</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">REB</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">AST</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">FG</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">3PT</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">+/-</th>
+                <th className="px-3 md:px-6 py-2 md:py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Date</th>
+                <th className="px-3 md:px-6 py-2 md:py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Matchup</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">MIN</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">PTS</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">REB</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">AST</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">FG</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">3PT</th>
+                <th className="px-2 md:px-6 py-2 md:py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">+/-</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
               {data.games.slice(0, 10).map((game, idx) => {
                 const gameDate = new Date(game.GAME_DATE);
-                const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return (
                 <tr key={idx} className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formattedDate}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{game.MATCHUP}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-semibold text-gray-600">{game.MIN ? typeof game.MIN === 'number' ? game.MIN.toFixed(1) : game.MIN : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-base text-center font-bold text-gray-900">{game.PTS}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-base text-center font-semibold text-gray-900">{game.REB}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-base text-center font-semibold text-gray-900">{game.AST}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-semibold text-gray-900">{game.FGM}-{game.FGA}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-semibold text-gray-900">{game.FG3M}-{game.FG3A}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-base text-center font-bold ${game.PLUS_MINUS >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  <td className="px-3 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900">{formattedDate}</td>
+                  <td className="px-3 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900">{game.MATCHUP}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm text-center font-semibold text-gray-600">{game.MIN ? typeof game.MIN === 'number' ? game.MIN.toFixed(1) : game.MIN : '-'}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-bold text-gray-900">{game.PTS}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-semibold text-gray-900">{game.REB}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-semibold text-gray-900">{game.AST}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm text-center font-semibold text-gray-900">{game.FGM}-{game.FGA}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm text-center font-semibold text-gray-900">{game.FG3M}-{game.FG3A}</td>
+                  <td className={`px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-bold ${game.PLUS_MINUS >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                     {game.PLUS_MINUS > 0 ? '+' : ''}{game.PLUS_MINUS}
                   </td>
                 </tr>
