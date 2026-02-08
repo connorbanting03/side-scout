@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Activity, Settings } from 'lucide-react';
 import { Player, PlayerGamesData } from '../types';
 import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
 import LiveGameSection from './LiveGameSection';
+import { API_BASE_URL } from '../lib/config';
 
 interface PlayerDashboardProps {
   player: Player;
@@ -22,7 +23,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:5000/api/player/${player.id}/games?limit=${gameLimit}&season=2025-26`);
+        const response = await fetch(`${API_BASE_URL}/api/player/${player.id}/games?limit=${gameLimit}&season=2025-26`);
         if (!response.ok) throw new Error('Failed to fetch data');
         const result = await response.json();
         setData(result);

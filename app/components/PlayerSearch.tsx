@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, Users, User, Plus, X } from 'lucide-react';
 import { Player, Team, SearchResult, isPlayer, isTeam } from '../types';
+import { API_BASE_URL } from '../lib/config';
 
 interface PlayerSearchProps {
   onSelectPlayer: (player: Player) => void;
@@ -46,7 +47,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       
       if (searchType === 'all' || searchType === 'players') {
         promises.push(
-          fetch(`http://localhost:5000/api/player/search?name=${encodeURIComponent(searchQuery)}`)
+          fetch(`${API_BASE_URL}/api/player/search?name=${encodeURIComponent(searchQuery)}`)
             .then(res => res.json())
             .then(data => data.players || [])
         );
@@ -56,7 +57,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       
       if (searchType === 'all' || searchType === 'teams') {
         promises.push(
-          fetch(`http://localhost:5000/api/team/search?name=${encodeURIComponent(searchQuery)}`)
+          fetch(`${API_BASE_URL}/api/team/search?name=${encodeURIComponent(searchQuery)}`)
             .then(res => res.json())
             .then(data => data.teams || [])
         );
@@ -73,7 +74,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       if (teams.length > 0) {
         const teamPlayersPromises = teams.map(async (team: Team) => {
           try {
-            const response = await fetch(`http://localhost:5000/api/team/${team.id}/players`);
+            const response = await fetch(`${API_BASE_URL}/api/team/${team.id}/players`);
             const data = await response.json();
             return { teamId: team.id, players: data.players || [] };
           } catch (error) {

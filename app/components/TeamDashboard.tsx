@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Activity, Shield, Settings } from 'lucide-rea
 import { Team, TeamGamesData } from '../types';
 import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
 import LiveGameSection from './LiveGameSection';
+import { API_BASE_URL } from '../lib/config';
 
 interface TeamDashboardProps {
   team: Team;
@@ -26,8 +27,8 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       setError(null);
       try {
         const [gamesResponse, standingsResponse] = await Promise.all([
-          fetch(`http://localhost:5000/api/team/${team.id}/games?limit=${gameLimit}&season=2025-26`),
-          fetch(`http://localhost:5000/api/team/${team.id}/standings`)
+          fetch(`${API_BASE_URL}/api/team/${team.id}/games?limit=${gameLimit}&season=2025-26`),
+          fetch(`${API_BASE_URL}/api/team/${team.id}/standings`)
         ]);
         
         if (!gamesResponse.ok) throw new Error('Failed to fetch games data');

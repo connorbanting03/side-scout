@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Radio, Clock, Trophy, Calendar, RefreshCw } from 'lucide-react';
 import { LiveGameData, LivePlayerStats, LiveTeamStats, LiveGameInfo, GameStats } from '../types';
+import { API_BASE_URL } from '../lib/config';
 
 interface LiveGameSectionProps {
   entityType: 'player' | 'team';
@@ -27,7 +28,7 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
 
   const fetchLiveData = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/live/${entityType}/${entityId}`);
+      const response = await fetch(`${API_BASE_URL}/api/live/${entityType}/${entityId}`);
       if (!response.ok) throw new Error('Failed to fetch live data');
       const result: LiveGameData = await response.json();
       setData(result);

@@ -584,7 +584,15 @@ def get_team_live_game(team_id):
 if __name__ == '__main__':
     # Test mode: fetch Steph Curry before starting server
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='NBA Stats API Server')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host IP address (default: 127.0.0.1)')
+    parser.add_argument('--port', type=int, default=5000, help='Port number (default: 5000)')
+    parser.add_argument('test', nargs='?', help='Run in test mode')
+    args = parser.parse_args()
+    
+    if args.test == 'test':
         print("Testing API - Fetching Steph Curry...")
         
         # Search for Steph Curry
@@ -657,5 +665,6 @@ if __name__ == '__main__':
         
         print("\n\nTest complete!")
     else:
-        app.run(debug=True, port=5000)
+        print(f"Starting server on {args.host}:{args.port}")
+        app.run(debug=True, host=args.host, port=args.port)
 
