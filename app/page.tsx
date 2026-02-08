@@ -76,7 +76,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3 md:mb-4">
             <div className="min-w-0">
               <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg">🏀 Side Scout</h1>
-              <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Player Analytics Dashboard</p>
+              <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
             </div>
             <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
               <label className="text-sm md:text-base text-white font-bold drop-shadow">Last</label>
@@ -196,19 +196,63 @@ export default function Home() {
               )
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="bg-white rounded-2xl p-12 shadow-xl border-2 border-indigo-100 max-w-md">
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-4">Welcome to Side Scout</h2>
+                <div className="bg-white rounded-2xl p-12 shadow-xl border-2 border-indigo-100 max-w-2xl">
+                  <div className="mb-6">
+                    <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">🏀 Side Scout</h2>
+                    <p className="text-xl font-semibold text-gray-800">Gauge Your Potential Parlays with Full Player Context</p>
+                  </div>
                   <p className="text-gray-700 mb-6 text-lg">
-                    Search for NBA players or teams to view stats, trends, and performance analytics.
+                    Make smarter parlay decisions with comprehensive NBA player stats, live game tracking, and detailed performance context. Analyze trends, matchups, and recent form before you place your bets.
                   </p>
-                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4">
-                    <p className="mb-3 font-semibold text-indigo-700">Features:</p>
-                    <ul className="text-left space-y-2 inline-block">
-                      <li className="flex items-center gap-2"><span className="text-lg">📊</span> Comprehensive stats breakdown</li>
-                      <li className="flex items-center gap-2"><span className="text-lg">📈</span> Performance trends and charts</li>
-                      <li className="flex items-center gap-2"><span className="text-lg">🏀</span> Game-by-game analysis</li>
-                      <li className="flex items-center gap-2"><span className="text-lg">📑</span> Multi-player/team comparison tabs</li>
-                    </ul>
+                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-6">
+                    <p className="mb-4 font-semibold text-indigo-700 text-lg">What You Get:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">📊</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Form Tracking</p>
+                          <p className="text-xs text-gray-600">Last 5, 10, 15, 20 games or full season stats</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">🎯</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Matchup Breakdown</p>
+                          <p className="text-xs text-gray-600">Historical performance vs opponents</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">🔴</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Live Game Data</p>
+                          <p className="text-xs text-gray-600">Real-time stats during games</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">📈</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Trend Analysis</p>
+                          <p className="text-xs text-gray-600">Visual performance charts and patterns</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">🎲</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Multi-Player Research</p>
+                          <p className="text-xs text-gray-600">Compare multiple players simultaneously</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">💯</span>
+                        <div>
+                          <p className="font-semibold text-gray-800">Detailed Stats</p>
+                          <p className="text-xs text-gray-600">Points, rebounds, assists, shooting %</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800">💡 Get Started: Search for players above to analyze their recent form and matchup history before building your parlay!</p>
                   </div>
                 </div>
               </div>

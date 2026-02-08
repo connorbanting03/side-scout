@@ -4,11 +4,79 @@ from nba_api.stats.static import players, teams
 from nba_api.live.nba.endpoints import scoreboard
 from flask_cors import CORS
 import pandas as pd
+import time
+from functools import wraps, lru_cache
+import requests
+from requests.exceptions import Timeout, ReadTimeout, ConnectionError
 
 app = Flask(__name__)
 CORS(app)
 
+# Configure NBA API timeout (monkey patch)
+try:
+    from nba_api.library.http import NBAStatsHTTP
+    original_send = NBAStatsHTTP.send_api_request
+    
+    def send_with_timeout(self, *args, **kwargs):
+        # Increase timeout to 60 seconds
+        if 'timeout' not in kwargs:
+            kwargs['timeout'] = 60
+        return original_send(self, *args, **kwargs)
+    
+    NBAStatsHTTP.send_api_request = send_with_timeout
+except Exception as e:
+    print(f"Warning: Could not configure NBA API timeout: {e}")
+
+# Retry decorator with exponential backoff
+def retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2):
+    """Retry decorator with exponential backoff for handling API timeouts"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (Timeout, ReadTimeout, ConnectionError) as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        print(f"Attempt {attempt + 1} failed: {str(e)}. Retrying in {delay}s...")
+                        time.sleep(delay)
+                        delay *= backoff_factor
+                    else:
+                        print(f"All {max_retries} attempts failed for {func.__name__}")
+                except Exception as e:
+                    # For non-timeout errors, fail immediately
+                    raise e
+            
+            # If we've exhausted all retries, raise the last exception
+            raise last_exception
+        return wrapper
+    return decorator
+
+# Cache for static data (teams, players list)
+@lru_cache(maxsize=1)
+def get_all_teams_cached():
+    """Cached version of teams.get_teams()"""
+    return teams.get_teams()
+
+@lru_cache(maxsize=1)
+def get_all_players_cached():
+    """Cached version of players.get_players()"""
+    return players.get_players()
+
+def format_timeout_error():
+    """Format a user-friendly timeout error message"""
+    return {
+        'error': 'NBA API timeout',
+        'message': 'The NBA Stats API is currently experiencing high traffic or is slow to respond. This often happens during live games. Please try again in a moment.',
+        'retry': True
+    }
+
 @app.route('/api/player/<player_id>', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_player_by_id(player_id):
     """Get player career stats by player ID"""
     try:
@@ -19,8 +87,10 @@ def get_player_by_id(player_id):
             'player_info': info.get_dict(),
             'career_stats': career.get_dict()
         })
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch player data'}), 400
 
 @app.route('/api/player/search', methods=['GET'])
 def search_player():
@@ -34,8 +104,8 @@ def search_player():
         player_list = players.find_players_by_full_name(name)
         
         if not player_list:
-            # Try partial match
-            all_players = players.get_players()
+            # Try partial match using cached data
+            all_players = get_all_players_cached()
             player_list = [p for p in all_players if name.lower() in p['full_name'].lower()]
         
         # Filter to only active players
@@ -43,7 +113,7 @@ def search_player():
         
         return jsonify({'players': active_players})
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to search for player'}), 400
 
 @app.route('/api/team/search', methods=['GET'])
 def search_team():
@@ -53,8 +123,8 @@ def search_team():
         return jsonify({'error': 'Name parameter required'}), 400
     
     try:
-        # Get all teams
-        all_teams = teams.get_teams()
+        # Get all teams from cache
+        all_teams = get_all_teams_cached()
         
         # Search by full name, city, nickname, or abbreviation
         team_list = [t for t in all_teams if 
@@ -65,9 +135,10 @@ def search_team():
         
         return jsonify({'teams': team_list})
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to search for team'}), 400
 
 @app.route('/api/team/<int:team_id>/players', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_team_players(team_id):
     """Get all active players from a specific team"""
     try:
@@ -87,13 +158,17 @@ def get_team_players(team_id):
             })
         
         return jsonify({'players': players_list})
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        print(f"Timeout getting team players: {str(e)}")
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
         print(f"Error getting team players: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch team roster'}), 400
 
 @app.route('/api/player/<player_id>/games', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_player_games(player_id):
     """Get player game log with optional limit"""
     limit = request.args.get('limit', 10, type=int)
@@ -165,10 +240,13 @@ def get_player_games(player_id):
             'team': team_abbr,
             'jersey': jersey
         })
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch player game log'}), 400
 
 @app.route('/api/team/<team_id>/games', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_team_games(team_id):
     """Get team game log with stats"""
     limit = request.args.get('limit', 10, type=int)
@@ -224,7 +302,7 @@ def get_team_games(team_id):
             averages['WIN_PCT'] = 0.0
         
         # Get team info - find_team_by_id doesn't exist, use get_teams and filter
-        all_teams = teams.get_teams()
+        all_teams = get_all_teams_cached()
         team_info = next((t for t in all_teams if t['id'] == int(team_id)), None)
         
         # Convert games to dict and replace NaN values
@@ -240,13 +318,19 @@ def get_team_games(team_id):
             'total_games': len(games_df),
             'team_info': team_info
         })
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Timeout in get_team_games: {error_details}")
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in get_team_games: {error_details}")
-        return jsonify({'error': str(e), 'details': error_details}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch team game log', 'details': error_details}), 400
 
 @app.route('/api/standings', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_standings():
     """Get current NBA standings"""
     try:
@@ -266,13 +350,19 @@ def get_standings():
             standings_list.append(standing_dict)
         
         return jsonify({'standings': standings_list})
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Timeout in get_standings: {error_details}")
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in get_standings: {error_details}")
-        return jsonify({'error': str(e), 'details': error_details}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch standings', 'details': error_details}), 400
 
 @app.route('/api/team/<int:team_id>/standings', methods=['GET'])
+@retry_with_backoff(max_retries=3, initial_delay=2)
 def get_team_standings(team_id):
     """Get specific team's standings info"""
     try:
@@ -305,23 +395,32 @@ def get_team_standings(team_id):
                 })
         
         return jsonify({'error': 'Team not found in standings'}), 404
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Timeout in get_team_standings: {error_details}")
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in get_team_standings: {error_details}")
-        return jsonify({'error': str(e), 'details': error_details}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch team standings', 'details': error_details}), 400
 
 @app.route('/api/scoreboard', methods=['GET'])
+@retry_with_backoff(max_retries=2, initial_delay=1)
 def get_scoreboard():
     """Get today's scoreboard"""
     try:
         games = scoreboard.ScoreBoard()
         return jsonify(games.get_dict())
+    except (Timeout, ReadTimeout, ConnectionError) as e:
+        return jsonify(format_timeout_error()), 503
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e), 'message': 'Failed to fetch scoreboard'}), 400
 
 
 @app.route('/api/live/player/<player_id>', methods=['GET'])
+@retry_with_backoff(max_retries=2, initial_delay=1)
 def get_player_live_game(player_id):
     """Check if player is in a live game today, return live stats and season matchup history"""
     try:
@@ -464,6 +563,7 @@ def get_player_live_game(player_id):
 
 
 @app.route('/api/live/team/<team_id>', methods=['GET'])
+@retry_with_backoff(max_retries=2, initial_delay=1)
 def get_team_live_game(team_id):
     """Check if team is in a live game today, return live stats and season matchup history"""
     try:
@@ -582,31 +682,25 @@ def get_team_live_game(team_id):
 
 
 if __name__ == '__main__':
-    # Test mode: fetch Steph Curry before starting server
+    # Development mode: run with Flask's built-in server
+    # For production, use: gunicorn -w 4 -b 0.0.0.0:5000 api:app
     import sys
-    import argparse
     
-    parser = argparse.ArgumentParser(description='NBA Stats API Server')
-    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host IP address (default: 127.0.0.1)')
-    parser.add_argument('--port', type=int, default=5000, help='Port number (default: 5000)')
-    parser.add_argument('test', nargs='?', help='Run in test mode')
-    args = parser.parse_args()
-    
-    if args.test == 'test':
-        print("Testing API - Fetching Steph Curry...")
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+        print("Testing API - Fetching LeBron James...")
         
-        # Search for Steph Curry
-        curry_players = players.find_players_by_full_name("Lebron James")
-        print(f"\nFound {len(curry_players)} player(s):")
-        for player in curry_players:
+        # Search for LeBron
+        test_players = players.find_players_by_full_name("Lebron James")
+        print(f"\nFound {len(test_players)} player(s):")
+        for player in test_players:
             print(f"  - {player['full_name']} (ID: {player['id']})")
         
-        if curry_players:
-            curry_id = str(curry_players[0]['id'])
-            print(f"\nFetching 2025-26 season game log for {curry_players[0]['full_name']}...")
+        if test_players:
+            player_id = str(test_players[0]['id'])
+            print(f"\nFetching 2025-26 season game log for {test_players[0]['full_name']}...")
             
-            # Get current season game log (2025-26 season)
-            gamelog = playergamelog.PlayerGameLog(player_id=curry_id, season='2025-26')
+            # Get current season game log
+            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26')
             games_df = gamelog.get_data_frames()[0]
             
             print(f"\nTotal games this season: {len(games_df)}")
@@ -615,10 +709,10 @@ if __name__ == '__main__':
             last_10 = games_df.head(10)
             
             print(f"\n{'='*80}")
-            print(f"STEPH CURRY - LAST 10 GAMES AVERAGES (2025-26 Season)")
+            print(f"LAST 10 GAMES AVERAGES (2025-26 Season)")
             print(f"{'='*80}")
             
-            # Calculate averages for last 10 games
+            # Calculate averages
             stats_to_avg = {
                 'PTS': 'Points',
                 'FGM': 'FG Made',
@@ -665,6 +759,9 @@ if __name__ == '__main__':
         
         print("\n\nTest complete!")
     else:
-        print(f"Starting server on {args.host}:{args.port}")
-        app.run(debug=True, host=args.host, port=args.port)
+        # Development server
+        print("Starting Flask development server...")
+        print("For production with multiple workers, use:")
+        print("  gunicorn -w 4 -b 192.168.2.123:5000 api:app")
+        app.run(debug=True, host='192.168.2.123', port=5000)
 
