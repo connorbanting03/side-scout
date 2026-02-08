@@ -157,10 +157,12 @@ export interface LiveTeamStats {
 }
 
 export interface LiveGameData {
-  live: boolean;
+  live: boolean;          // True only when game status is 2 (actively live)
+  hasGame?: boolean;       // True if any game exists today (scheduled/live/final)
   game?: LiveGameInfo;
   playerStats?: LivePlayerStats;
   teamStats?: LiveTeamStats;
   matchupHistory?: GameStats[];
   error?: string;
+  message?: string;        // Error or info message
 }

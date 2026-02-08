@@ -368,11 +368,14 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
               {data.games.slice(0, 10).map((game, idx) => {
                 const gameDate = new Date(game.GAME_DATE);
                 const formattedDate = gameDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const minutesDisplay = game.MIN 
+                  ? (typeof game.MIN === 'number' ? (game.MIN as number).toFixed(1) : String(game.MIN))
+                  : '-';
                 return (
                 <tr key={idx} className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 transition-colors">
                   <td className="px-3 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900">{formattedDate}</td>
                   <td className="px-3 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900">{game.MATCHUP}</td>
-                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm text-center font-semibold text-gray-600">{game.MIN ? typeof game.MIN === 'number' ? game.MIN.toFixed(1) : game.MIN : '-'}</td>
+                  <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-xs md:text-sm text-center font-semibold text-gray-600">{minutesDisplay}</td>
                   <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-bold text-gray-900">{game.PTS}</td>
                   <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-semibold text-gray-900">{game.REB}</td>
                   <td className="px-2 md:px-6 py-2.5 md:py-4 whitespace-nowrap text-sm md:text-base text-center font-semibold text-gray-900">{game.AST}</td>

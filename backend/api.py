@@ -422,7 +422,7 @@ def get_scoreboard():
 @app.route('/api/live/player/<player_id>', methods=['GET'])
 @retry_with_backoff(max_retries=2, initial_delay=1)
 def get_player_live_game(player_id):
-    """Check if player is in a live game today, return live stats and season matchup history"""
+    """Check if player has a game today (scheduled/live/final), return stats and matchup history"""
     try:
         # Get player info to find their team
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
@@ -436,13 +436,13 @@ def get_player_live_game(player_id):
             team_id = player_data[team_idx] if len(player_data) > team_idx else None
 
         if not team_id:
-            return jsonify({'live': False, 'message': 'Could not determine player team'})
+            return jsonify({'live': False, 'hasGame': False, 'message': 'Could not determine player team'})
 
-        # Get today's scoreboard
+        # Get today's scoreboard (NBA API returns games for "today" in their server time)
         sb = scoreboard.ScoreBoard()
         sb_dict = sb.get_dict()
 
-        live_game = None
+        game_found = None
         opponent_tricode = None
         is_home = False
 
@@ -451,19 +451,21 @@ def get_player_live_game(player_id):
             away_id = game['awayTeam']['teamId']
 
             if home_id == team_id or away_id == team_id:
-                live_game = game
+                game_found = game
                 is_home = (home_id == team_id)
                 opponent_tricode = game['awayTeam']['teamTricode'] if is_home else game['homeTeam']['teamTricode']
                 break
 
-        if not live_game:
-            return jsonify({'live': False})
+        if not game_found:
+            return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today'})
 
-        # Get live box score for player stats if game has started
-        game_id = live_game['gameId']
+        # Game status: 1=scheduled, 2=live, 3=final
+        game_status = game_found.get('gameStatus', 1)
+        game_id = game_found['gameId']
         player_live_stats = None
 
-        if live_game.get('gameStatus', 1) >= 2:
+        # Only fetch box score stats if game has started (status 2=live or 3=final)
+        if game_status >= 2:
             try:
                 from nba_api.live.nba.endpoints import boxscore as live_boxscore
                 box = live_boxscore.BoxScore(game_id=game_id)
@@ -497,7 +499,7 @@ def get_player_live_game(player_id):
                         }
                         break
             except Exception as e:
-                print(f"Error getting live box score: {e}")
+                print(f"Error getting box score (Game status: {game_status}): {e}")
 
         # Get season matchup history vs this opponent
         matchup_history = []
@@ -528,28 +530,29 @@ def get_player_live_game(player_id):
             print(f"Error getting matchup history: {e}")
 
         return jsonify({
-            'live': True,
+            'live': game_status == 2,  # True only if game is actively live (status 2)
+            'hasGame': True,
             'game': {
-                'gameId': live_game['gameId'],
-                'status': live_game.get('gameStatus', 1),
-                'statusText': live_game.get('gameStatusText', ''),
-                'period': live_game.get('period', 0),
-                'clock': live_game.get('gameClock', ''),
+                'gameId': game_found['gameId'],
+                'status': game_status,
+                'statusText': game_found.get('gameStatusText', ''),
+                'period': game_found.get('period', 0),
+                'clock': game_found.get('gameClock', ''),
                 'homeTeam': {
-                    'teamId': live_game['homeTeam']['teamId'],
-                    'tricode': live_game['homeTeam'].get('teamTricode', ''),
-                    'teamName': live_game['homeTeam'].get('teamName', ''),
-                    'score': live_game['homeTeam'].get('score', 0),
-                    'wins': live_game['homeTeam'].get('wins', 0),
-                    'losses': live_game['homeTeam'].get('losses', 0),
+                    'teamId': game_found['homeTeam']['teamId'],
+                    'tricode': game_found['homeTeam'].get('teamTricode', ''),
+                    'teamName': game_found['homeTeam'].get('teamName', ''),
+                    'score': game_found['homeTeam'].get('score', 0),
+                    'wins': game_found['homeTeam'].get('wins', 0),
+                    'losses': game_found['homeTeam'].get('losses', 0),
                 },
                 'awayTeam': {
-                    'teamId': live_game['awayTeam']['teamId'],
-                    'tricode': live_game['awayTeam'].get('teamTricode', ''),
-                    'teamName': live_game['awayTeam'].get('teamName', ''),
-                    'score': live_game['awayTeam'].get('score', 0),
-                    'wins': live_game['awayTeam'].get('wins', 0),
-                    'losses': live_game['awayTeam'].get('losses', 0),
+                    'teamId': game_found['awayTeam']['teamId'],
+                    'tricode': game_found['awayTeam'].get('teamTricode', ''),
+                    'teamName': game_found['awayTeam'].get('teamName', ''),
+                    'score': game_found['awayTeam'].get('score', 0),
+                    'wins': game_found['awayTeam'].get('wins', 0),
+                    'losses': game_found['awayTeam'].get('losses', 0),
                 },
                 'isHome': is_home,
             },
@@ -559,21 +562,21 @@ def get_player_live_game(player_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'live': False, 'error': str(e)})
+        return jsonify({'live': False, 'hasGame': False, 'error': str(e), 'message': 'Error checking for player game'})
 
 
 @app.route('/api/live/team/<team_id>', methods=['GET'])
 @retry_with_backoff(max_retries=2, initial_delay=1)
 def get_team_live_game(team_id):
-    """Check if team is in a live game today, return live stats and season matchup history"""
+    """Check if team has a game today (scheduled/live/final), return stats and matchup history"""
     try:
         team_id_int = int(team_id)
 
-        # Get today's scoreboard
+        # Get today's scoreboard (NBA API returns games for "today" in their server time)
         sb = scoreboard.ScoreBoard()
         sb_dict = sb.get_dict()
 
-        live_game = None
+        game_found = None
         opponent_tricode = None
         is_home = False
 
@@ -582,20 +585,23 @@ def get_team_live_game(team_id):
             away_id = game['awayTeam']['teamId']
 
             if home_id == team_id_int or away_id == team_id_int:
-                live_game = game
+                game_found = game
                 is_home = (home_id == team_id_int)
                 opponent_tricode = game['awayTeam']['teamTricode'] if is_home else game['homeTeam']['teamTricode']
                 break
 
-        if not live_game:
-            return jsonify({'live': False})
+        if not game_found:
+            return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today'})
 
-        # Get team's live stats from box score if game started
+        # Game status: 1=scheduled, 2=live, 3=final
+        game_status = game_found.get('gameStatus', 1)
+        
+        # Get team's stats from box score if game has started (status 2=live or 3=final)
         team_live_stats = None
-        if live_game.get('gameStatus', 1) >= 2:
+        if game_status >= 2:
             try:
                 from nba_api.live.nba.endpoints import boxscore as live_boxscore
-                box = live_boxscore.BoxScore(game_id=live_game['gameId'])
+                box = live_boxscore.BoxScore(game_id=game_found['gameId'])
                 box_dict = box.get_dict()
 
                 team_key = 'homeTeam' if is_home else 'awayTeam'
@@ -622,7 +628,7 @@ def get_team_live_game(team_id):
                         'ft_pct': stats.get('freeThrowsPercentage', 0),
                     }
             except Exception as e:
-                print(f"Error getting live box score for team: {e}")
+                print(f"Error getting box score for team (Game status: {game_status}): {e}")
 
         # Get season matchup history
         matchup_history = []
@@ -647,28 +653,29 @@ def get_team_live_game(team_id):
             print(f"Error getting team matchup history: {e}")
 
         return jsonify({
-            'live': True,
+            'live': game_status == 2,  # True only if game is actively live (status 2)
+            'hasGame': True,
             'game': {
-                'gameId': live_game['gameId'],
-                'status': live_game.get('gameStatus', 1),
-                'statusText': live_game.get('gameStatusText', ''),
-                'period': live_game.get('period', 0),
-                'clock': live_game.get('gameClock', ''),
+                'gameId': game_found['gameId'],
+                'status': game_status,
+                'statusText': game_found.get('gameStatusText', ''),
+                'period': game_found.get('period', 0),
+                'clock': game_found.get('gameClock', ''),
                 'homeTeam': {
-                    'teamId': live_game['homeTeam']['teamId'],
-                    'tricode': live_game['homeTeam'].get('teamTricode', ''),
-                    'teamName': live_game['homeTeam'].get('teamName', ''),
-                    'score': live_game['homeTeam'].get('score', 0),
-                    'wins': live_game['homeTeam'].get('wins', 0),
-                    'losses': live_game['homeTeam'].get('losses', 0),
+                    'teamId': game_found['homeTeam']['teamId'],
+                    'tricode': game_found['homeTeam'].get('teamTricode', ''),
+                    'teamName': game_found['homeTeam'].get('teamName', ''),
+                    'score': game_found['homeTeam'].get('score', 0),
+                    'wins': game_found['homeTeam'].get('wins', 0),
+                    'losses': game_found['homeTeam'].get('losses', 0),
                 },
                 'awayTeam': {
-                    'teamId': live_game['awayTeam']['teamId'],
-                    'tricode': live_game['awayTeam'].get('teamTricode', ''),
-                    'teamName': live_game['awayTeam'].get('teamName', ''),
-                    'score': live_game['awayTeam'].get('score', 0),
-                    'wins': live_game['awayTeam'].get('wins', 0),
-                    'losses': live_game['awayTeam'].get('losses', 0),
+                    'teamId': game_found['awayTeam']['teamId'],
+                    'tricode': game_found['awayTeam'].get('teamTricode', ''),
+                    'teamName': game_found['awayTeam'].get('teamName', ''),
+                    'score': game_found['awayTeam'].get('score', 0),
+                    'wins': game_found['awayTeam'].get('wins', 0),
+                    'losses': game_found['awayTeam'].get('losses', 0),
                 },
                 'isHome': is_home,
             },
@@ -678,7 +685,7 @@ def get_team_live_game(team_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'live': False, 'error': str(e)})
+        return jsonify({'live': False, 'hasGame': False, 'error': str(e), 'message': 'Error checking for team game'})
 
 
 if __name__ == '__main__':

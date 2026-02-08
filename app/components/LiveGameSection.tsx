@@ -54,18 +54,21 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
   }, [fetchLiveData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!data?.live) return;
+    // Only set up auto-refresh if there's a game today
+    if (!data?.hasGame || !data?.game) return;
 
-    if (data.game?.status === 2) {
+    // Refresh every 30 seconds if game is live (status 2)
+    if (data.game.status === 2) {
       const liveInterval = setInterval(fetchLiveData, 30000);
       return () => clearInterval(liveInterval);
     }
 
-    if (data.game?.status === 1) {
+    // Refresh every 2 minutes if game is scheduled (status 1)
+    if (data.game.status === 1) {
       const scheduledInterval = setInterval(fetchLiveData, 120000);
       return () => clearInterval(scheduledInterval);
     }
-  }, [data?.game?.status, data?.live, fetchLiveData]);
+  }, [data?.game?.status, data?.hasGame, fetchLiveData]);
 
   if (loading) {
     return (
@@ -78,7 +81,8 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
     );
   }
 
-  if (!data?.live || !data.game) {
+  // Show game section if there's a game today (scheduled, live, or final)
+  if (!data?.hasGame || !data.game) {
     return null;
   }
 
