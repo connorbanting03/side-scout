@@ -119,13 +119,13 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-2xl max-h-[92vh] md:max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 md:p-6 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Settings className="w-6 h-6" />
-            <h2 className="text-2xl font-bold">Stats Configuration</h2>
+            <Settings className="w-5 h-5 md:w-6 md:h-6" />
+            <h2 className="text-xl md:text-2xl font-bold">Stats Configuration</h2>
           </div>
           <button
             onClick={onClose}
@@ -136,7 +136,7 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+        <div className="p-4 md:p-6 overflow-y-auto max-h-[calc(92vh-140px)] md:max-h-[calc(90vh-180px)]">
           <div className="flex gap-3 mb-6">
             <button
               onClick={handleSelectAll}
@@ -155,8 +155,8 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
           <div className="space-y-6">
             {/* Basic Stats */}
             <div className="border-2 border-indigo-100 rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-blue-50">
-              <h3 className="text-lg font-bold text-indigo-900 mb-3">Basic Stats</h3>
-              <div className="grid grid-cols-2 gap-2">
+              <h3 className="text-base md:text-lg font-bold text-indigo-900 mb-3">Basic Stats</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 md:gap-2">
                 <CheckboxItem label="Points Per Game (PPG)" configKey="ppg" />
                 <CheckboxItem label="Rebounds Per Game (RPG)" configKey="rpg" />
                 <CheckboxItem label="Assists Per Game (APG)" configKey="apg" />
@@ -171,8 +171,8 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
 
             {/* Additional Stats */}
             <div className="border-2 border-indigo-100 rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-blue-50">
-              <h3 className="text-lg font-bold text-indigo-900 mb-3">Additional Stats</h3>
-              <div className="grid grid-cols-2 gap-2">
+              <h3 className="text-base md:text-lg font-bold text-indigo-900 mb-3">Additional Stats</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 md:gap-2">
                 <CheckboxItem label="3-Pointers Made (3PM)" configKey="fg3m" />
                 <CheckboxItem label="Field Goals Made (FGM)" configKey="fgm" />
                 <CheckboxItem label="Free Throws Made (FTM)" configKey="ftm" />

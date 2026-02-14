@@ -173,7 +173,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
           }}
           onFocus={() => hasResults && setShowResults(true)}
           placeholder={`Search ${searchType === 'all' ? 'players & teams' : searchType}...`}
-          className="w-full pl-10 pr-12 py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-base"
+          className="w-full pl-10 pr-12 py-2.5 md:py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-sm md:text-base"
         />
         {query && (
           <button
@@ -193,7 +193,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
       </div>
 
       {showResults && hasResults && (
-        <div className="absolute z-20 w-full mt-2 bg-white rounded-lg shadow-2xl border border-indigo-200 max-h-96 overflow-y-auto">
+        <div className="absolute z-20 w-full mt-1 md:mt-2 bg-white rounded-lg shadow-2xl border border-indigo-200 max-h-[65vh] md:max-h-96 overflow-y-auto">
           {teamResults.length > 0 && (
             <div>
               <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-200 sticky top-0">
@@ -218,7 +218,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
                       e.stopPropagation();
                       handleSelectTeam(team, true);
                     }}
-                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100"
                     title="Add to list"
                   >
                     <Plus className="w-4 h-4" />
@@ -256,7 +256,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
                         e.stopPropagation();
                         handleSelectPlayer(player, true);
                       }}
-                      className="ml-2 p-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                      className="ml-2 p-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100"
                       title="Add to list"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -293,7 +293,7 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
                       e.stopPropagation();
                       handleSelectPlayer(player, true);
                     }}
-                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                    className="ml-2 p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100"
                     title="Add to list"
                   >
                     <Plus className="w-4 h-4" />

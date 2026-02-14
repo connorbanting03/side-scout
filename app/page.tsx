@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
@@ -26,6 +26,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [gameLimit, setGameLimit] = useState(10);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const addPlayer = (player: Player) => {
     const tabId = `player-${player.id}`;
@@ -72,8 +73,8 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
       <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-30 shadow-lg">
-        <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4">
-          <div className="flex items-center justify-between mb-3 md:mb-4">
+        <div className="max-w-7xl mx-auto px-3 md:px-4 py-2 md:py-4">
+          <div className="flex items-center justify-between mb-2 md:mb-4">
             <div className="min-w-0">
               <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg">🏀 Side Scout</h1>
               <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
@@ -98,11 +99,30 @@ export default function Home() {
       </header>
 
       <div className="flex h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] relative">
-        {/* Collapse button - Always visible when tabs exist */}
+        {/* Mobile sidebar backdrop */}
+        {tabs.length > 0 && mobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
+        {/* Mobile floating toggle button */}
+        {tabs.length > 0 && (
+          <button
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            className="fixed bottom-5 left-4 z-50 md:hidden bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-2xl shadow-xl flex items-center gap-2 transition-all active:scale-95"
+          >
+            {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <span className="text-xs font-bold bg-white/20 px-1.5 py-0.5 rounded-lg">{tabs.length}</span>
+          </button>
+        )}
+
+        {/* Desktop collapse button */}
         {tabs.length > 0 && (
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="fixed left-0 top-32 md:top-36 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-full p-2 shadow-lg transition-all z-50"
+            className="hidden md:block fixed left-0 top-36 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-full p-2 shadow-lg transition-all z-50"
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -111,11 +131,9 @@ export default function Home() {
 
         {/* Sidebar with player tabs */}
         {tabs.length > 0 && (
-          <aside className={`${
-            sidebarCollapsed ? 'w-0 md:w-16' : 'w-48 md:w-72'
-          } bg-gradient-to-b from-white to-slate-50 border-r-4 border-indigo-300 overflow-y-auto shadow-2xl transition-all duration-300 flex-shrink-0 relative`}>
+          <aside className={`fixed top-0 bottom-0 left-0 z-40 w-[280px] transform transition-all duration-300 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 md:z-auto ${sidebarCollapsed ? 'md:w-16' : 'md:w-72'} bg-gradient-to-b from-white to-slate-50 border-r-4 border-indigo-300 overflow-y-auto shadow-2xl flex-shrink-0`}>
 
-            <div className="p-4">
+            <div className="px-4 pt-10 pb-24 md:py-4">
               {!sidebarCollapsed && (
                 <>
                   <div className="flex items-center justify-between mb-3">
@@ -127,6 +145,7 @@ export default function Home() {
                         onClick={() => {
                           setTabs([]);
                           setActiveTab(null);
+                          setMobileSidebarOpen(false);
                         }}
                         className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded transition-colors"
                         title="Clear all tabs"
@@ -143,7 +162,7 @@ export default function Home() {
                       return (
                         <div
                           key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
+                          onClick={() => { setActiveTab(tab.id); setMobileSidebarOpen(false); }}
                           className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 cursor-pointer ${
                             activeTab === tab.id
                               ? 'bg-gradient-to-r from-indigo-500 to-blue-500 border-2 border-indigo-600 text-white shadow-md transform scale-105'
@@ -196,16 +215,16 @@ export default function Home() {
               )
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="bg-white rounded-2xl p-12 shadow-xl border-2 border-indigo-100 max-w-2xl">
-                  <div className="mb-6">
-                    <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">🏀 Side Scout</h2>
-                    <p className="text-xl font-semibold text-gray-800">Gauge Your Potential Parlays with Full Player Context</p>
+                <div className="bg-white rounded-2xl p-5 md:p-12 shadow-xl border-2 border-indigo-100 max-w-2xl mx-2 md:mx-0">
+                  <div className="mb-4 md:mb-6">
+                    <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">🏀 Side Scout</h2>
+                    <p className="text-base md:text-xl font-semibold text-gray-800">Gauge Your Potential Parlays with Full Player Context</p>
                   </div>
-                  <p className="text-gray-700 mb-6 text-lg">
+                  <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-lg">
                     Make smarter parlay decisions with comprehensive NBA player stats, live game tracking, and detailed performance context. Analyze trends, matchups, and recent form before you place your bets.
                   </p>
-                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-6">
-                    <p className="mb-4 font-semibold text-indigo-700 text-lg">What You Get:</p>
+                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 md:p-6">
+                    <p className="mb-3 md:mb-4 font-semibold text-indigo-700 text-base md:text-lg">What You Get:</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
                       <div className="flex items-start gap-3">
                         <span className="text-2xl">📊</span>
@@ -251,8 +270,8 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-800">💡 Get Started: Search for players above to analyze their recent form and matchup history before building your parlay!</p>
+                  <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs md:text-sm font-medium text-blue-800">💡 Get Started: Search for players above to analyze their recent form and matchup history before building your parlay!</p>
                   </div>
                 </div>
               </div>

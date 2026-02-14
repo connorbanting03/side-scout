@@ -215,7 +215,7 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <StatsConfigMenu
         isOpen={configOpen}
         onClose={() => setConfigOpen(false)}
@@ -305,7 +305,7 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       )}
 
       {/* Key Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
         {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
         {config.oppPpg && <StatCard label="Opp PPG" value={data.averages.OPP_PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'OPP_PTS') : undefined} />}
         {config.winPct && <StatCard label="Win %" value={`${(data.averages.WIN_PCT * 100).toFixed(1)}%`} />}

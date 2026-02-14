@@ -124,7 +124,7 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
     const homeHighlight = game.isHome;
 
     return (
-      <div className="flex items-center justify-center gap-6 md:gap-10 py-3">
+      <div className="flex items-center justify-center gap-4 md:gap-10 py-2 md:py-3">
         {/* Away Team */}
         <div className={`flex flex-col items-center gap-0.5 ${awayHighlight ? 'scale-110' : 'opacity-70'} transition-all`}>
           <span className="text-xl md:text-2xl font-black text-indigo-700">
@@ -310,16 +310,16 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
       <div className="relative">
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-3">
-            <Radio className={`w-5 h-5 ${isLive ? 'text-red-500' : isFinal ? 'text-amber-500' : 'text-indigo-500'}`} />
-            <h3 className="text-lg font-bold text-gray-900">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <Radio className={`w-4 h-4 md:w-5 md:h-5 flex-shrink-0 ${isLive ? 'text-red-500' : isFinal ? 'text-amber-500' : 'text-indigo-500'}`} />
+            <h3 className="text-sm md:text-lg font-bold text-gray-900 truncate">
               {isLive ? 'Live Game' : isFinal ? "Today's Game" : 'Game Today'}
             </h3>
             <StatusBadge />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {lastUpdated && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-400 hidden md:inline">
                 Updated {lastUpdated.toLocaleTimeString()}
               </span>
             )}
