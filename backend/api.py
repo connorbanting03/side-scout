@@ -1,15 +1,19 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from nba_api.stats.endpoints import playercareerstats, commonplayerinfo, playergamelog, teamgamelogs, teamdashboardbygeneralsplits, leaguedashteamstats
 from nba_api.stats.static import players, teams
 from nba_api.live.nba.endpoints import scoreboard
 from flask_cors import CORS
 import pandas as pd
 import time
+import os
 from functools import wraps, lru_cache
 import requests
 from requests.exceptions import Timeout, ReadTimeout, ConnectionError
 
-app = Flask(__name__)
+# Path to the Next.js static export output
+STATIC_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'out')
+
+app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path='')
 CORS(app)
 
 # Configure NBA API timeout (monkey patch)
@@ -768,7 +772,24 @@ if __name__ == '__main__':
     else:
         # Development server
         print("Starting Flask development server...")
+        print(f"Serving frontend from: {STATIC_FOLDER}")
         print("For production with multiple workers, use:")
-        print("  gunicorn -w 4 -b 192.168.2.123:5000 api:app")
-        app.run(debug=True, host='192.168.2.123', port=5000)
+        print("  gunicorn -w 4 -b 0.0.0.0:5000 api:app")
+        app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+# ---------- Serve Next.js static frontend ----------
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    """Serve the Next.js static export. API routes are handled above."""
+    # If the exact file exists, serve it (JS, CSS, images, etc.)
+    full_path = os.path.join(STATIC_FOLDER, path)
+    if path and os.path.isfile(full_path):
+        return send_from_directory(STATIC_FOLDER, path)
+    # Otherwise serve index.html for SPA client-side routing
+    index_path = os.path.join(STATIC_FOLDER, 'index.html')
+    if os.path.isfile(index_path):
+        return send_from_directory(STATIC_FOLDER, 'index.html')
+    return jsonify({'error': 'Frontend not built. Run npm run build first.'}), 404
 

@@ -1,3 +1,4 @@
 // API Configuration
-// Change this to your local network IP when testing on mobile devices
-export const API_BASE_URL = 'http://192.168.2.123:5000';
+// In production, the Flask server serves both the API and the frontend on the same origin.
+// For local dev with `next dev`, you can override this to point at Flask directly.
+export const API_BASE_URL = '';
