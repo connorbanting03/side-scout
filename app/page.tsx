@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Menu, TrendingUp, Activity, Target, Users } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
@@ -75,9 +75,12 @@ export default function Home() {
       <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-30 shadow-lg">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-2 md:py-4">
           <div className="flex items-center justify-between mb-2 md:mb-4">
-            <div className="min-w-0">
-              <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg">🏀 Side Scout</h1>
-              <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
+            <div className="min-w-0 flex items-center">
+              <img src="/logo.png" alt="" className="h-14 w-auto md:h-14 drop-shadow-lg flex-shrink-0" />
+              <div className="-ml-5 md:ml-0 md:pl-2">
+                <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight">Side Scout</h1>
+                <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
+              </div>
             </div>
             <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
               <label className="text-sm md:text-base text-white font-bold drop-shadow">Last</label>
@@ -214,64 +217,76 @@ export default function Home() {
                 />
               )
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="bg-white rounded-2xl p-5 md:p-12 shadow-xl border-2 border-indigo-100 max-w-2xl mx-2 md:mx-0">
-                  <div className="mb-4 md:mb-6">
-                    <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">🏀 Side Scout</h2>
-                    <p className="text-base md:text-xl font-semibold text-gray-800">Gauge Your Potential Parlays with Full Player Context</p>
-                  </div>
-                  <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-lg">
-                    Make smarter parlay decisions with comprehensive NBA player stats, live game tracking, and detailed performance context. Analyze trends, matchups, and recent form before you place your bets.
-                  </p>
-                  <div className="text-sm text-gray-600 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 md:p-6">
-                    <p className="mb-3 md:mb-4 font-semibold text-indigo-700 text-base md:text-lg">What You Get:</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">📊</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Form Tracking</p>
-                          <p className="text-xs text-gray-600">Last 5, 10, 15, 20 games or full season stats</p>
-                        </div>
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="max-w-xl w-full mx-4 md:mx-0">
+                  {/* Features */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-10 md:mb-12">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <TrendingUp className="w-5 h-5 text-white" />
                       </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">🎯</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Matchup Breakdown</p>
-                          <p className="text-xs text-gray-600">Historical performance vs opponents</p>
-                        </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Trend Analysis</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Track performance patterns across any game range</p>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">🔴</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Live Game Data</p>
-                          <p className="text-xs text-gray-600">Real-time stats during games</p>
-                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-md">
+                        <Activity className="w-5 h-5 text-white" />
                       </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">📈</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Trend Analysis</p>
-                          <p className="text-xs text-gray-600">Visual performance charts and patterns</p>
-                        </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Live Game Tracking</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Real-time stats and updates during games</p>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">🎲</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Multi-Player Research</p>
-                          <p className="text-xs text-gray-600">Compare multiple players simultaneously</p>
-                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <Target className="w-5 h-5 text-white" />
                       </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">💯</span>
-                        <div>
-                          <p className="font-semibold text-gray-800">Detailed Stats</p>
-                          <p className="text-xs text-gray-600">Points, rebounds, assists, shooting %</p>
-                        </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Matchup History</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Head-to-head stats and shooting splits</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Multi-Player Compare</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Analyze multiple players side-by-side</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <TrendingUp className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Performance Insights</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Understand exactly how players are trending</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-md">
+                        <Target className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 pt-1">
+                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Parlay Confidence</h3>
+                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Make informed decisions before placing bets</p>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs md:text-sm font-medium text-blue-800">💡 Get Started: Search for players above to analyze their recent form and matchup history before building your parlay!</p>
+
+                  {/* CTA */}
+                  <div className="text-center">
+                    <p className="text-xs md:text-sm text-gray-400 font-medium">
+                      Search a player or team above to get started
+                    </p>
                   </div>
                 </div>
               </div>

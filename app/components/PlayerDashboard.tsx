@@ -148,9 +148,9 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
     };
     
     const getIcon = () => {
-      if (direction === 'up') return <TrendingUp className="w-6 h-6" />;
-      if (direction === 'down') return <TrendingDown className="w-6 h-6" />;
-      return <Activity className="w-6 h-6" />;
+      if (direction === 'up') return <TrendingUp className="w-4 h-4 md:w-6 md:h-6" />;
+      if (direction === 'down') return <TrendingDown className="w-4 h-4 md:w-6 md:h-6" />;
+      return <Activity className="w-4 h-4 md:w-6 md:h-6" />;
     };
     
     const formatValue = (val: number | undefined) => {
@@ -169,23 +169,23 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
         </div>
         
         <div className="space-y-2">
-          <div className="flex items-baseline gap-1 md:gap-2">
-            <span className={`text-xl md:text-3xl font-black ${direction === 'up' ? 'text-emerald-600' : direction === 'down' ? 'text-rose-600' : 'text-gray-600'}`}>
-              {trend > 0 ? '+' : ''}{trend.toFixed(1)}%
+          <div className="flex flex-col md:flex-row md:items-baseline gap-0.5 md:gap-2">
+            <span className={`text-lg md:text-3xl font-black leading-tight ${direction === 'up' ? 'text-emerald-600' : direction === 'down' ? 'text-rose-600' : 'text-gray-600'}`}>
+              {trend > 0 ? '+' : ''}{Math.abs(trend) >= 100 ? trend.toFixed(0) : trend.toFixed(1)}%
             </span>
-            <span className="text-xs md:text-sm text-gray-600 font-semibold">
-              {direction === 'up' ? 'Trending Up' : direction === 'down' ? 'Trending Down' : 'Stable'}
+            <span className="text-[10px] md:text-sm text-gray-500 font-bold uppercase tracking-wider">
+              {direction === 'up' ? 'Up' : direction === 'down' ? 'Down' : 'Stable'}
             </span>
           </div>
           
           <div className="grid grid-cols-2 gap-2 md:gap-3 pt-2 md:pt-3 border-t border-gray-200">
             <div>
-              <div className="text-xs text-gray-500 font-semibold">Recent Avg</div>
-              <div className="text-base md:text-lg font-bold text-gray-900">{formatValue(recentAvg)}{unit}</div>
+              <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Recent</div>
+              <div className="text-sm md:text-lg font-bold text-gray-900">{formatValue(recentAvg)}{unit}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 font-semibold">Earlier Avg</div>
-              <div className="text-base md:text-lg font-bold text-gray-900">{formatValue(olderAvg)}{unit}</div>
+              <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Earlier</div>
+              <div className="text-sm md:text-lg font-bold text-gray-900">{formatValue(olderAvg)}{unit}</div>
             </div>
           </div>
         </div>
