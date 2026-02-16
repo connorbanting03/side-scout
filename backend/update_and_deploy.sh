@@ -22,6 +22,9 @@
 #   ./update_and_deploy.sh           # Incremental update (default, fast)
 #   ./update_and_deploy.sh --full    # Full re-fetch (slower, all players)
 #
+# Email Notifications:
+#   Sends completion status to connorbanting03@gmail.com
+#
 # ================================================================
 
 set -euo pipefail
@@ -32,6 +35,7 @@ BRANCH="main"
 REMOTE="origin"
 PREFETCH_MODE="${1:---update}"  # Default to --update (incremental)
 TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+EMAIL="connorbanting03@gmail.com"
 
 echo ""
 echo "========================================================"
