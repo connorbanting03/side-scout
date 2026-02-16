@@ -308,7 +308,7 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
         {config.ppg && <StatCard label="PPG" value={data.averages.PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'PTS') : undefined} />}
         {config.oppPpg && <StatCard label="Opp PPG" value={data.averages.OPP_PTS.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'OPP_PTS') : undefined} />}
-        {config.winPct && <StatCard label="Win %" value={`${(data.averages.WIN_PCT * 100).toFixed(1)}%`} />}
+        {config.totalPoints && <StatCard label="Total Pts (O/U)" value={(data.averages.PTS + data.averages.OPP_PTS).toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games.map(g => ({ ...g, TOTAL: g.PTS + (g.OPP_PTS || 0) })), 'TOTAL') : undefined} />}
         {config.fgPct && <StatCard label="FG%" value={`${(data.averages.FG_PCT * 100).toFixed(1)}%`} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG_PCT') * 100 : undefined} />}
         {config.rpg && <StatCard label="RPG" value={data.averages.REB.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'REB') : undefined} />}
         {config.apg && <StatCard label="APG" value={data.averages.AST.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'AST') : undefined} />}
