@@ -6,6 +6,8 @@ from flask_cors import CORS
 import pandas as pd
 import time
 import os
+import json
+from datetime import datetime, timedelta
 from functools import wraps, lru_cache
 import requests
 from requests.exceptions import Timeout, ReadTimeout, ConnectionError
@@ -13,8 +15,98 @@ from requests.exceptions import Timeout, ReadTimeout, ConnectionError
 # Path to the Next.js static export output
 STATIC_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'out')
 
+# Path to the JSON cache directory (populated by prefetch_cache.py)
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+# Cache is considered stale after this many hours
+CACHE_MAX_AGE_HOURS = 24
+
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path='')
 CORS(app)
+
+
+# =====================================================
+# JSON CACHE LAYER
+# =====================================================
+
+def load_cache(filepath, max_age_hours=CACHE_MAX_AGE_HOURS):
+    """Load data from a JSON cache file. Returns None if missing or stale."""
+    try:
+        if not os.path.isfile(filepath):
+            return None
+        with open(filepath, 'r') as f:
+            payload = json.load(f)
+        # Check staleness
+        cached_at = payload.get('_cached_at', '')
+        if cached_at:
+            cached_time = datetime.fromisoformat(cached_at.replace('Z', '+00:00'))
+            age = datetime.now(cached_time.tzinfo) - cached_time
+            if age > timedelta(hours=max_age_hours):
+                return None  # Stale
+        return payload.get('data')
+    except Exception as e:
+        print(f"Cache read error ({filepath}): {e}")
+        return None
+
+
+def load_player_games_cache(player_id):
+    """Load cached player game log. Returns dict with games/team/jersey/team_id or None."""
+    filepath = os.path.join(CACHE_DIR, 'player_games', f'{player_id}.json')
+    return load_cache(filepath)
+
+
+def load_team_games_cache(team_id):
+    """Load cached team game log. Returns list of game dicts or None."""
+    filepath = os.path.join(CACHE_DIR, 'team_games', f'{team_id}.json')
+    return load_cache(filepath)
+
+
+def load_team_standings_cache(team_id):
+    """Load cached team standings. Returns standings dict or None."""
+    filepath = os.path.join(CACHE_DIR, 'team_standings.json')
+    all_standings = load_cache(filepath)
+    if all_standings and str(team_id) in all_standings:
+        return all_standings[str(team_id)]
+    return None
+
+
+def load_roster_cache(team_id):
+    """Load cached team roster. Returns list of player dicts or None."""
+    filepath = os.path.join(CACHE_DIR, 'rosters', f'{team_id}.json')
+    return load_cache(filepath)
+
+
+def get_player_team_id_from_cache(player_id):
+    """Get the player's team_id from cache (avoids CommonPlayerInfo API call).
+    Tries player_games cache first, then falls back to rosters."""
+    # Try player_games cache (has team_id field if prefetch ran with the fix)
+    cached = load_player_games_cache(player_id)
+    if cached and cached.get('team_id'):
+        return cached['team_id']
+
+    # Fallback: search rosters cache for this player
+    rosters_data = load_cache(os.path.join(CACHE_DIR, 'all_rosters.json'))
+    if rosters_data:
+        for team_id_str, roster in rosters_data.items():
+            for p in roster:
+                if str(p.get('id')) == str(player_id):
+                    return int(team_id_str)
+    return None
+
+
+# In-memory scoreboard cache (refreshed at most once per 60 seconds)
+_scoreboard_cache = {'data': None, 'fetched_at': 0}
+SCOREBOARD_CACHE_TTL = 60  # seconds
+
+def get_scoreboard_cached():
+    """Return today's scoreboard, reusing a cached copy within the TTL window.
+    The scoreboard is the same for all players/teams, so one call serves everyone."""
+    now = time.time()
+    if _scoreboard_cache['data'] and (now - _scoreboard_cache['fetched_at']) < SCOREBOARD_CACHE_TTL:
+        return _scoreboard_cache['data']
+    sb = scoreboard.ScoreBoard()
+    _scoreboard_cache['data'] = sb.get_dict()
+    _scoreboard_cache['fetched_at'] = now
+    return _scoreboard_cache['data']
 
 # Configure NBA API timeout (monkey patch)
 try:
@@ -78,6 +170,77 @@ def format_timeout_error():
         'message': 'The NBA Stats API is currently experiencing high traffic or is slow to respond. This often happens during live games. Please try again in a moment.',
         'retry': True
     }
+
+# =====================================================
+# DIRECTORY ENDPOINT (one-time load for frontend search)
+# =====================================================
+
+@app.route('/api/directory', methods=['GET'])
+def get_directory():
+    """
+    Returns the full player + team directory for client-side search.
+    The frontend calls this ONCE on load and caches it — no more
+    per-keystroke API calls.
+    """
+    try:
+        # Try loading from JSON cache first
+        cached_players = load_cache(os.path.join(CACHE_DIR, 'players.json'))
+        cached_teams = load_cache(os.path.join(CACHE_DIR, 'teams.json'))
+        cached_rosters = load_cache(os.path.join(CACHE_DIR, 'all_rosters.json'))
+
+        # Fallback to nba_api static data if cache is missing
+        if cached_players is None:
+            all_p = get_all_players_cached()
+            cached_players = [p for p in all_p if p.get('is_active', False)]
+        if cached_teams is None:
+            cached_teams = get_all_teams_cached()
+        if cached_rosters is None:
+            cached_rosters = {}  # Will be fetched on-demand
+
+        return jsonify({
+            'players': cached_players,
+            'teams': cached_teams,
+            'rosters': cached_rosters,  # { "team_id": [player, ...] }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'message': 'Failed to load directory'}), 500
+
+
+@app.route('/api/cache/status', methods=['GET'])
+def cache_status():
+    """Check the age and presence of cached data files."""
+    files_to_check = [
+        'players.json', 'teams.json', 'all_rosters.json',
+        'standings.json', 'team_standings.json'
+    ]
+    status = {}
+    for fname in files_to_check:
+        fpath = os.path.join(CACHE_DIR, fname)
+        if os.path.isfile(fpath):
+            try:
+                with open(fpath, 'r') as f:
+                    payload = json.load(f)
+                status[fname] = {
+                    'exists': True,
+                    'cached_at': payload.get('_cached_at', 'unknown'),
+                    'size_kb': round(os.path.getsize(fpath) / 1024, 1)
+                }
+            except Exception:
+                status[fname] = {'exists': True, 'error': 'Could not read'}
+        else:
+            status[fname] = {'exists': False}
+
+    # Count per-entity caches
+    player_games_dir = os.path.join(CACHE_DIR, 'player_games')
+    team_games_dir = os.path.join(CACHE_DIR, 'team_games')
+    rosters_dir = os.path.join(CACHE_DIR, 'rosters')
+
+    status['player_games_count'] = len(os.listdir(player_games_dir)) if os.path.isdir(player_games_dir) else 0
+    status['team_games_count'] = len(os.listdir(team_games_dir)) if os.path.isdir(team_games_dir) else 0
+    status['rosters_count'] = len(os.listdir(rosters_dir)) if os.path.isdir(rosters_dir) else 0
+
+    return jsonify(status)
+
 
 @app.route('/api/player/<player_id>', methods=['GET'])
 @retry_with_backoff(max_retries=3, initial_delay=2)
@@ -146,6 +309,13 @@ def search_team():
 def get_team_players(team_id):
     """Get all active players from a specific team"""
     try:
+        # Check JSON cache first
+        cached = load_roster_cache(team_id)
+        if cached is not None:
+            print(f"[CACHE HIT] roster for team {team_id}")
+            return jsonify({'players': cached})
+
+        print(f"[CACHE MISS] roster for team {team_id} - calling NBA API")
         from nba_api.stats.endpoints import commonteamroster
         
         # Get current season roster
@@ -179,6 +349,32 @@ def get_player_games(player_id):
     season = request.args.get('season', '2025-26')
     
     try:
+        # ---- Cache-first: check JSON cache ----
+        cached = load_player_games_cache(player_id)
+        if cached is not None:
+            print(f"[CACHE HIT] player games for {player_id}")
+            all_games = cached.get('games', [])
+            limited_games = all_games[:limit]
+
+            # Compute averages from the limited slice
+            stats_columns = ['PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT',
+                            'FTM', 'FTA', 'FT_PCT', 'REB', 'AST', 'STL', 'BLK', 'TOV',
+                            'PF', 'PLUS_MINUS', 'MIN']
+            averages = {}
+            for col in stats_columns:
+                values = [g.get(col, 0) or 0 for g in limited_games]
+                averages[col] = sum(values) / len(values) if values else 0.0
+
+            return jsonify({
+                'games': limited_games,
+                'averages': averages,
+                'total_games': cached.get('total_games', len(all_games)),
+                'team': cached.get('team'),
+                'jersey': cached.get('jersey'),
+            })
+
+        # ---- Cache miss: call NBA API ----
+        print(f"[CACHE MISS] player games for {player_id} - calling NBA API")
         gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=season)
         games_df = gamelog.get_data_frames()[0]
         
@@ -257,6 +453,41 @@ def get_team_games(team_id):
     season = request.args.get('season', '2025-26')
     
     try:
+        # ---- Cache-first: check JSON cache ----
+        cached_games = load_team_games_cache(team_id)
+        if cached_games is not None:
+            print(f"[CACHE HIT] team games for {team_id}")
+            limited_games = cached_games[:limit]
+
+            stats_columns = ['PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT',
+                            'FTM', 'FTA', 'FT_PCT', 'REB', 'AST', 'STL', 'BLK', 'TOV',
+                            'PF', 'PLUS_MINUS']
+            averages = {}
+            for col in stats_columns:
+                values = [g.get(col, 0) or 0 for g in limited_games]
+                averages[col] = sum(values) / len(values) if values else 0.0
+
+            # OPP_PTS
+            opp_values = [g.get('OPP_PTS') or (g.get('PTS', 0) - g.get('PLUS_MINUS', 0)) for g in limited_games]
+            averages['OPP_PTS'] = sum(opp_values) / len(opp_values) if opp_values else 0.0
+            averages['DEF_RATING'] = averages['OPP_PTS']
+
+            # WIN_PCT
+            wins = sum(1 for g in limited_games if g.get('WL') == 'W')
+            averages['WIN_PCT'] = wins / len(limited_games) if limited_games else 0.0
+
+            all_teams = get_all_teams_cached()
+            team_info = next((t for t in all_teams if t['id'] == int(team_id)), None)
+
+            return jsonify({
+                'games': limited_games,
+                'averages': averages,
+                'total_games': len(cached_games),
+                'team_info': team_info
+            })
+
+        # ---- Cache miss: call NBA API ----
+        print(f"[CACHE MISS] team games for {team_id} - calling NBA API")
         # Get team game log using correct endpoint
         from nba_api.stats.endpoints import teamgamelogs
         
@@ -338,6 +569,13 @@ def get_team_games(team_id):
 def get_standings():
     """Get current NBA standings"""
     try:
+        # Check cache first
+        cached = load_cache(os.path.join(CACHE_DIR, 'standings.json'))
+        if cached is not None:
+            print("[CACHE HIT] standings")
+            return jsonify({'standings': cached})
+
+        print("[CACHE MISS] standings - calling NBA API")
         from nba_api.stats.endpoints import leaguestandings
         standings = leaguestandings.LeagueStandings(season='2025-26')
         standings_dict = standings.get_dict()
@@ -370,6 +608,13 @@ def get_standings():
 def get_team_standings(team_id):
     """Get specific team's standings info"""
     try:
+        # Check cache first
+        cached = load_team_standings_cache(team_id)
+        if cached is not None:
+            print(f"[CACHE HIT] standings for team {team_id}")
+            return jsonify(cached)
+
+        print(f"[CACHE MISS] standings for team {team_id} - calling NBA API")
         from nba_api.stats.endpoints import leaguestandings
         standings = leaguestandings.LeagueStandings(season='2025-26')
         standings_dict = standings.get_dict()
@@ -415,8 +660,7 @@ def get_team_standings(team_id):
 def get_scoreboard():
     """Get today's scoreboard"""
     try:
-        games = scoreboard.ScoreBoard()
-        return jsonify(games.get_dict())
+        return jsonify(get_scoreboard_cached())
     except (Timeout, ReadTimeout, ConnectionError) as e:
         return jsonify(format_timeout_error()), 503
     except Exception as e:
@@ -428,23 +672,26 @@ def get_scoreboard():
 def get_player_live_game(player_id):
     """Check if player has a game today (scheduled/live/final), return stats and matchup history"""
     try:
-        # Get player info to find their team
-        info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
-        player_info_dict = info.get_dict()
-        headers = player_info_dict['resultSets'][0]['headers']
-        player_data = player_info_dict['resultSets'][0]['rowSet'][0] if player_info_dict['resultSets'][0]['rowSet'] else []
-
-        team_id = None
-        if 'TEAM_ID' in headers:
-            team_idx = headers.index('TEAM_ID')
-            team_id = player_data[team_idx] if len(player_data) > team_idx else None
+        # ---- OPTIMIZATION: get team_id from cache instead of CommonPlayerInfo API call ----
+        team_id = get_player_team_id_from_cache(player_id)
+        if not team_id:
+            # Cache miss — fall back to API (only if cache doesn't have it)
+            print(f"[CACHE MISS] player team_id for {player_id} - calling CommonPlayerInfo API")
+            info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+            player_info_dict = info.get_dict()
+            headers = player_info_dict['resultSets'][0]['headers']
+            player_data = player_info_dict['resultSets'][0]['rowSet'][0] if player_info_dict['resultSets'][0]['rowSet'] else []
+            if 'TEAM_ID' in headers:
+                team_idx = headers.index('TEAM_ID')
+                team_id = player_data[team_idx] if len(player_data) > team_idx else None
+        else:
+            print(f"[CACHE HIT] player team_id for {player_id} = {team_id}")
 
         if not team_id:
             return jsonify({'live': False, 'hasGame': False, 'message': 'Could not determine player team'})
 
-        # Get today's scoreboard (NBA API returns games for "today" in their server time)
-        sb = scoreboard.ScoreBoard()
-        sb_dict = sb.get_dict()
+        # ---- OPTIMIZATION: use in-memory scoreboard cache (shared across all requests) ----
+        sb_dict = get_scoreboard_cached()
 
         game_found = None
         opponent_tricode = None
@@ -469,6 +716,7 @@ def get_player_live_game(player_id):
         player_live_stats = None
 
         # Only fetch box score stats if game has started (status 2=live or 3=final)
+        # NOTE: BoxScore is the ONE call we must keep live — it's real-time data
         if game_status >= 2:
             try:
                 from nba_api.live.nba.endpoints import boxscore as live_boxscore
@@ -505,31 +753,40 @@ def get_player_live_game(player_id):
             except Exception as e:
                 print(f"Error getting box score (Game status: {game_status}): {e}")
 
-        # Get season matchup history vs this opponent
+        # ---- OPTIMIZATION: get matchup history from cache instead of PlayerGameLog API call ----
         matchup_history = []
         try:
-            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26')
-            games_df = gamelog.get_data_frames()[0]
+            cached_player = load_player_games_cache(player_id)
+            if cached_player and cached_player.get('games'):
+                print(f"[CACHE HIT] matchup history for player {player_id} vs {opponent_tricode}")
+                all_games = cached_player['games']
+                opp_games = [g for g in all_games if opponent_tricode and opponent_tricode.upper() in (g.get('MATCHUP', '') or '').upper()]
+                matchup_history = opp_games
+            else:
+                # Cache miss — fall back to API
+                print(f"[CACHE MISS] matchup history for player {player_id} - calling PlayerGameLog API")
+                gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26')
+                games_df = gamelog.get_data_frames()[0]
 
-            opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
+                opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
 
-            if 'MIN' in opp_games.columns:
-                def convert_minutes(min_val):
-                    if pd.isna(min_val):
-                        return 0
-                    if isinstance(min_val, str) and ':' in min_val:
-                        parts = min_val.split(':')
-                        return float(parts[0]) + float(parts[1]) / 60
-                    return float(min_val)
-                opp_games = opp_games.copy()
-                opp_games['MIN'] = opp_games['MIN'].apply(convert_minutes)
+                if 'MIN' in opp_games.columns:
+                    def convert_minutes(min_val):
+                        if pd.isna(min_val):
+                            return 0
+                        if isinstance(min_val, str) and ':' in min_val:
+                            parts = min_val.split(':')
+                            return float(parts[0]) + float(parts[1]) / 60
+                        return float(min_val)
+                    opp_games = opp_games.copy()
+                    opp_games['MIN'] = opp_games['MIN'].apply(convert_minutes)
 
-            history_dict = opp_games.to_dict('records')
-            for game in history_dict:
-                for key, value in game.items():
-                    if pd.isna(value):
-                        game[key] = None
-            matchup_history = history_dict
+                history_dict = opp_games.to_dict('records')
+                for game in history_dict:
+                    for key, value in game.items():
+                        if pd.isna(value):
+                            game[key] = None
+                matchup_history = history_dict
         except Exception as e:
             print(f"Error getting matchup history: {e}")
 
@@ -576,9 +833,8 @@ def get_team_live_game(team_id):
     try:
         team_id_int = int(team_id)
 
-        # Get today's scoreboard (NBA API returns games for "today" in their server time)
-        sb = scoreboard.ScoreBoard()
-        sb_dict = sb.get_dict()
+        # ---- OPTIMIZATION: use in-memory scoreboard cache (shared across all requests) ----
+        sb_dict = get_scoreboard_cached()
 
         game_found = None
         opponent_tricode = None
@@ -601,6 +857,7 @@ def get_team_live_game(team_id):
         game_status = game_found.get('gameStatus', 1)
         
         # Get team's stats from box score if game has started (status 2=live or 3=final)
+        # NOTE: BoxScore is the ONE call we must keep live — it's real-time data
         team_live_stats = None
         if game_status >= 2:
             try:
@@ -634,25 +891,36 @@ def get_team_live_game(team_id):
             except Exception as e:
                 print(f"Error getting box score for team (Game status: {game_status}): {e}")
 
-        # Get season matchup history
+        # ---- OPTIMIZATION: get matchup history from cache instead of TeamGameLogs API call ----
         matchup_history = []
         try:
-            gamelog = teamgamelogs.TeamGameLogs(team_id_nullable=team_id, season_nullable='2025-26')
-            games_df = gamelog.get_data_frames()[0]
+            cached_games = load_team_games_cache(team_id)
+            if cached_games is not None:
+                print(f"[CACHE HIT] matchup history for team {team_id} vs {opponent_tricode}")
+                opp_games = [g for g in cached_games if opponent_tricode and opponent_tricode.upper() in (g.get('MATCHUP', '') or '').upper()]
+                # Calculate OPP_PTS if not present
+                for g in opp_games:
+                    if g.get('OPP_PTS') is None and g.get('PTS') is not None and g.get('PLUS_MINUS') is not None:
+                        g['OPP_PTS'] = g['PTS'] - g['PLUS_MINUS']
+                matchup_history = opp_games
+            else:
+                print(f"[CACHE MISS] matchup history for team {team_id} - calling TeamGameLogs API")
+                gamelog = teamgamelogs.TeamGameLogs(team_id_nullable=team_id, season_nullable='2025-26')
+                games_df = gamelog.get_data_frames()[0]
 
-            opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
+                opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
 
-            # Calculate OPP_PTS if not present
-            if 'OPP_PTS' not in opp_games.columns and 'PTS' in opp_games.columns and 'PLUS_MINUS' in opp_games.columns:
-                opp_games = opp_games.copy()
-                opp_games['OPP_PTS'] = opp_games['PTS'] - opp_games['PLUS_MINUS']
+                # Calculate OPP_PTS if not present
+                if 'OPP_PTS' not in opp_games.columns and 'PTS' in opp_games.columns and 'PLUS_MINUS' in opp_games.columns:
+                    opp_games = opp_games.copy()
+                    opp_games['OPP_PTS'] = opp_games['PTS'] - opp_games['PLUS_MINUS']
 
-            history_dict = opp_games.to_dict('records')
-            for game in history_dict:
-                for key, value in game.items():
-                    if pd.isna(value):
-                        game[key] = None
-            matchup_history = history_dict
+                history_dict = opp_games.to_dict('records')
+                for game in history_dict:
+                    for key, value in game.items():
+                        if pd.isna(value):
+                            game[key] = None
+                matchup_history = history_dict
         except Exception as e:
             print(f"Error getting team matchup history: {e}")
 

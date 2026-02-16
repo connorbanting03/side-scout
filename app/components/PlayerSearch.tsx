@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Search, Users, User, Plus, X } from 'lucide-react';
-import { Player, Team, SearchResult, isPlayer, isTeam } from '../types';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, Users, User, Plus, X, Loader2 } from 'lucide-react';
+import { Player, Team } from '../types';
 import { API_BASE_URL } from '../lib/config';
 
 interface PlayerSearchProps {
@@ -10,15 +10,56 @@ interface PlayerSearchProps {
   onSelectTeam: (team: Team) => void;
 }
 
+// ---- Directory cache (loaded once, used for all searches) ----
+interface Directory {
+  players: Player[];
+  teams: Team[];
+  rosters: Record<string, Player[]>; // keyed by team_id
+}
+
+let directoryPromise: Promise<Directory> | null = null;
+let cachedDirectory: Directory | null = null;
+
+function loadDirectory(): Promise<Directory> {
+  if (cachedDirectory) return Promise.resolve(cachedDirectory);
+  if (directoryPromise) return directoryPromise;
+
+  directoryPromise = fetch(`${API_BASE_URL}/api/directory`)
+    .then(res => res.json())
+    .then((data: Directory) => {
+      cachedDirectory = data;
+      return data;
+    })
+    .catch(err => {
+      console.error('Failed to load directory:', err);
+      directoryPromise = null; // Allow retry
+      return { players: [], teams: [], rosters: {} } as Directory;
+    });
+
+  return directoryPromise;
+}
+
 export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSearchProps) {
   const [query, setQuery] = useState('');
-  const [playerResults, setPlayerResults] = useState<Player[]>([]);
-  const [teamResults, setTeamResults] = useState<Team[]>([]);
-  const [teamPlayersMap, setTeamPlayersMap] = useState<Map<number, Player[]>>(new Map());
-  const [loading, setLoading] = useState(false);
+  const [directory, setDirectory] = useState<Directory | null>(cachedDirectory);
+  const [dirLoading, setDirLoading] = useState(!cachedDirectory);
   const [showResults, setShowResults] = useState(false);
   const [searchType, setSearchType] = useState<'all' | 'players' | 'teams'>('all');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load directory once on mount
+  useEffect(() => {
+    let cancelled = false;
+    if (!cachedDirectory) {
+      loadDirectory().then(dir => {
+        if (!cancelled) {
+          setDirectory(dir);
+          setDirLoading(false);
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, []);
 
   // Click outside to close
   useEffect(() => {
@@ -27,89 +68,49 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
         setShowResults(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const searchAll = async (searchQuery: string) => {
-    if (searchQuery.length < 2) {
-      setPlayerResults([]);
-      setTeamResults([]);
-      return;
+  // ---- CLIENT-SIDE filtering (no API calls!) ----
+  const { playerResults, teamResults } = useMemo(() => {
+    if (!directory || query.length < 2) {
+      return { playerResults: [] as Player[], teamResults: [] as Team[] };
     }
 
-    setLoading(true);
-    try {
-      const promises = [];
-      
-      if (searchType === 'all' || searchType === 'players') {
-        promises.push(
-          fetch(`${API_BASE_URL}/api/player/search?name=${encodeURIComponent(searchQuery)}`)
-            .then(res => res.json())
-            .then(data => data.players || [])
-        );
-      } else {
-        promises.push(Promise.resolve([]));
-      }
-      
-      if (searchType === 'all' || searchType === 'teams') {
-        promises.push(
-          fetch(`${API_BASE_URL}/api/team/search?name=${encodeURIComponent(searchQuery)}`)
-            .then(res => res.json())
-            .then(data => data.teams || [])
-        );
-      } else {
-        promises.push(Promise.resolve([]));
-      }
+    const q = query.toLowerCase();
 
-      const [players, teams] = await Promise.all(promises);
-      
-      setPlayerResults(players);
-      setTeamResults(teams);
-      
-      // Fetch players for each team found
-      if (teams.length > 0) {
-        const teamPlayersPromises = teams.map(async (team: Team) => {
-          try {
-            const response = await fetch(`${API_BASE_URL}/api/team/${team.id}/players`);
-            const data = await response.json();
-            return { teamId: team.id, players: data.players || [] };
-          } catch (error) {
-            console.error(`Error fetching players for team ${team.id}:`, error);
-            return { teamId: team.id, players: [] };
-          }
-        });
-        
-        const teamPlayersResults = await Promise.all(teamPlayersPromises);
-        const newTeamPlayersMap = new Map();
-        teamPlayersResults.forEach(({ teamId, players }) => {
-          newTeamPlayersMap.set(teamId, players);
-        });
-        setTeamPlayersMap(newTeamPlayersMap);
-      } else {
-        setTeamPlayersMap(new Map());
-      }
-      
-      setShowResults(true);
-    } catch (error) {
-      console.error('Search error:', error);
-      setPlayerResults([]);
-      setTeamResults([]);
-    } finally {
-      setLoading(false);
+    let players: Player[] = [];
+    let teams: Team[] = [];
+
+    if (searchType === 'all' || searchType === 'players') {
+      players = directory.players
+        .filter(p => p.full_name.toLowerCase().includes(q))
+        .slice(0, 25); // Cap results for performance
     }
+
+    if (searchType === 'all' || searchType === 'teams') {
+      teams = directory.teams.filter(t =>
+        t.full_name.toLowerCase().includes(q) ||
+        t.city.toLowerCase().includes(q) ||
+        t.nickname.toLowerCase().includes(q) ||
+        t.abbreviation.toLowerCase().includes(q)
+      );
+    }
+
+    return { playerResults: players, teamResults: teams };
+  }, [directory, query, searchType]);
+
+  // Get roster for a team from cached directory (no API call)
+  const getTeamPlayers = (teamId: number): Player[] => {
+    if (!directory) return [];
+    return directory.rosters[String(teamId)] || [];
   };
 
   const handleSelectPlayer = (player: Player, keepOpen: boolean = false) => {
     onSelectPlayer(player);
     if (!keepOpen) {
       setQuery('');
-      setPlayerResults([]);
-      setTeamResults([]);
-      setTeamPlayersMap(new Map());
       setShowResults(false);
     }
   };
@@ -118,9 +119,6 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
     onSelectTeam(team);
     if (!keepOpen) {
       setQuery('');
-      setPlayerResults([]);
-      setTeamResults([]);
-      setTeamPlayersMap(new Map());
       setShowResults(false);
     }
   };
@@ -169,19 +167,26 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            searchAll(e.target.value);
+            if (e.target.value.length >= 2) setShowResults(true);
           }}
-          onFocus={() => hasResults && setShowResults(true)}
-          placeholder={`Search ${searchType === 'all' ? 'players & teams' : searchType}...`}
-          className="w-full pl-10 pr-12 py-2.5 md:py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-sm md:text-base"
+          onFocus={() => {
+            if (query.length >= 2 && hasResults) setShowResults(true);
+          }}
+          placeholder={
+            dirLoading
+              ? 'Loading player directory...'
+              : `Search ${searchType === 'all' ? 'players & teams' : searchType}...`
+          }
+          disabled={dirLoading}
+          className="w-full pl-10 pr-12 py-2.5 md:py-3.5 rounded-lg bg-white border-2 border-white focus:outline-none focus:ring-2 focus:ring-yellow-300 shadow-lg placeholder-gray-400 text-gray-900 font-semibold text-sm md:text-base disabled:opacity-60"
         />
-        {query && (
+        {dirLoading && (
+          <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 text-indigo-400 w-4 h-4 animate-spin" />
+        )}
+        {query && !dirLoading && (
           <button
             onClick={() => {
               setQuery('');
-              setPlayerResults([]);
-              setTeamResults([]);
-              setTeamPlayersMap(new Map());
               setShowResults(false);
             }}
             className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors z-10"
@@ -228,9 +233,9 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
             </div>
           )}
           
-          {/* Show team players sections */}
+          {/* Show team players sections (from cached directory - no API call) */}
           {teamResults.map((team) => {
-            const teamPlayers = teamPlayersMap.get(team.id) || [];
+            const teamPlayers = getTeamPlayers(team.id);
             if (teamPlayers.length === 0) return null;
             
             return (
@@ -302,12 +307,6 @@ export default function PlayerSearch({ onSelectPlayer, onSelectTeam }: PlayerSea
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {loading && (
-        <div className="absolute z-20 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 text-center text-gray-500">
-          Searching...
         </div>
       )}
     </div>
