@@ -77,7 +77,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-2 md:mb-4">
             <div className="min-w-0 flex items-center">
               <img src="/logo.png" alt="" className="h-14 w-auto md:h-14 drop-shadow-lg flex-shrink-0" />
-              <div className="-ml-5 md:ml-0 md:pl-2">
+              <div className="-ml-4 md:ml-0 md:pl-2 mt-1.5 md:mt-0">
                 <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight">Side Scout</h1>
                 <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
               </div>
