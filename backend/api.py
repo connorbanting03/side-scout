@@ -422,8 +422,9 @@ def get_player_games(player_id):
             jersey_idx = headers.index('JERSEY')
             jersey = player_data[jersey_idx] if len(player_data) > jersey_idx else None
         
-        # Get last N games
-        last_games = games_df.head(limit)
+        # Get last N games — .copy() avoids pandas SettingWithCopyWarning when
+        # we later mutate the MIN column on a slice from games_df.
+        last_games = games_df.head(limit).copy()
         
         # Convert MIN to numeric if it's in string format (e.g., "35:42" -> 35.7)
         if 'MIN' in last_games.columns:
