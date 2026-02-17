@@ -160,8 +160,31 @@ def get_all_teams_cached():
 
 @lru_cache(maxsize=1)
 def get_all_players_cached():
-    """Cached version of players.get_players()"""
+    """Cached version of players.get_players() (static bundle — may lag on rookies)."""
     return players.get_players()
+
+def get_all_active_players_live():
+    """Fetch active players from the live CommonAllPlayers endpoint.
+    Includes rookies and mid-season signings that the static bundle misses.
+    Result is NOT lru_cached so it always reflects the current roster."""
+    from nba_api.stats.endpoints import commonallplayers as _cap
+    cap = _cap.CommonAllPlayers(is_only_current_season=1, season='2025-26')
+    cap_dict = cap.get_dict()
+    headers = cap_dict['resultSets'][0]['headers']
+    rows = cap_dict['resultSets'][0]['rowSet']
+    active_players = []
+    for row in rows:
+        player_map = dict(zip(headers, row))
+        full_name = player_map.get('DISPLAY_FIRST_LAST', '')
+        name_parts = full_name.split(' ', 1)
+        active_players.append({
+            'id': player_map['PERSON_ID'],
+            'full_name': full_name,
+            'first_name': name_parts[0] if name_parts else '',
+            'last_name': name_parts[1] if len(name_parts) > 1 else '',
+            'is_active': True,
+        })
+    return active_players
 
 def format_timeout_error():
     """Format a user-friendly timeout error message"""
@@ -188,10 +211,10 @@ def get_directory():
         cached_teams = load_cache(os.path.join(CACHE_DIR, 'teams.json'))
         cached_rosters = load_cache(os.path.join(CACHE_DIR, 'all_rosters.json'))
 
-        # Fallback to nba_api static data if cache is missing
+        # Fallback to live API if cache is missing — uses CommonAllPlayers so
+        # rookies and mid-season signings aren't excluded like the static bundle.
         if cached_players is None:
-            all_p = get_all_players_cached()
-            cached_players = [p for p in all_p if p.get('is_active', False)]
+            cached_players = get_all_active_players_live()
         if cached_teams is None:
             cached_teams = get_all_teams_cached()
         if cached_rosters is None:

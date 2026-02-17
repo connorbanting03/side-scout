@@ -25,7 +25,7 @@ from datetime import datetime
 from nba_api.stats.static import players, teams
 from nba_api.stats.endpoints import (
     playergamelog, commonplayerinfo, commonteamroster,
-    teamgamelogs, leaguestandings
+    teamgamelogs, leaguestandings, commonallplayers
 )
 import pandas as pd
 
@@ -89,17 +89,40 @@ def load_existing_cache(filepath):
 def prefetch_directory():
     """
     Cache 1: The player/team directory (used for search).
-    This is the static list from nba_api - no API calls needed.
+    Uses the live CommonAllPlayers API endpoint so rookies and mid-season
+    signings are included — nba_api's bundled static player list is often
+    months behind and misses newly drafted players.
     """
     print("\n📋 Caching player & team directory...")
-    
-    all_players = players.get_players()
-    active_players = [p for p in all_players if p.get('is_active', False)]
+
+    # Use live API instead of static bundle — catches rookies & new signings
+    cap = api_call_with_retry(
+        commonallplayers.CommonAllPlayers,
+        is_only_current_season=1,
+        season=SEASON
+    )
+    cap_dict = cap.get_dict()
+    headers = cap_dict['resultSets'][0]['headers']
+    rows = cap_dict['resultSets'][0]['rowSet']
+
+    active_players = []
+    for row in rows:
+        player_map = dict(zip(headers, row))
+        full_name = player_map.get('DISPLAY_FIRST_LAST', '')
+        name_parts = full_name.split(' ', 1)
+        active_players.append({
+            'id': player_map['PERSON_ID'],
+            'full_name': full_name,
+            'first_name': name_parts[0] if name_parts else '',
+            'last_name': name_parts[1] if len(name_parts) > 1 else '',
+            'is_active': True,
+        })
+
     all_teams = teams.get_teams()
-    
+
     save_json(os.path.join(CACHE_DIR, 'players.json'), active_players)
     save_json(os.path.join(CACHE_DIR, 'teams.json'), all_teams)
-    
+
     print(f"  📊 {len(active_players)} active players, {len(all_teams)} teams")
     return active_players, all_teams
 
