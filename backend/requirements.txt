@@ -1,6 +1,7 @@
 Flask==3.0.0
 Flask-CORS==4.0.0
 nba_api==1.11.3
+numpy==1.26.4
 pandas==2.1.0
 gunicorn==21.2.0
 python-dotenv==1.0.0
