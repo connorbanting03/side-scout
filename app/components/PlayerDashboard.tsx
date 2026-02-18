@@ -113,7 +113,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       <div className="text-xs md:text-sm text-indigo-700 font-bold mb-1 md:mb-2 uppercase tracking-wide">{label}</div>
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xl md:text-3xl font-black text-gray-900">{value}</div>
+          <div className="text-2xl md:text-3xl font-black text-gray-900">{value}</div>
           {stdDev !== undefined && (
             <div className="text-xs text-gray-500 font-semibold mt-1">±{stdDev.toFixed(1)} SD</div>
           )}
@@ -184,7 +184,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
               <div className="text-sm md:text-lg font-bold text-gray-900">{formatValue(recentAvg)}{unit}</div>
             </div>
             <div>
-              <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Earlier</div>
+              <div className="text-[10px] md:text-xs text-gray-400 font-medium">Earlier</div>
               <div className="text-sm md:text-lg font-bold text-gray-900">{formatValue(olderAvg)}{unit}</div>
             </div>
           </div>

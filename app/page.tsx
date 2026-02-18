@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Menu, TrendingUp, Activity, Target, Users } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
@@ -70,15 +70,15 @@ export default function Home() {
   const activePlayer = tabs.find(tab => tab.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="flex flex-col min-h-[100dvh] bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
       <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 border-b border-indigo-700 sticky top-0 z-30 shadow-lg">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-2 md:py-4">
           <div className="flex items-center justify-between mb-2 md:mb-4">
             <div className="min-w-0 flex items-center">
               <img src="/logo.png" alt="" className="h-14 w-auto md:h-14 drop-shadow-lg flex-shrink-0" />
-              <div className="-ml-4 md:ml-0 md:pl-2 mt-1.5 md:mt-0">
-                <h1 className="text-xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight">Side Scout</h1>
+              <div className="-ml-2 md:ml-0 md:pl-2 mt-1.5 md:mt-0">
+                <h1 className="font-display text-xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight tracking-wide">Side Scout</h1>
                 <p className="text-xs md:text-sm text-white font-semibold drop-shadow hidden sm:block">NBA Stats Tracking & Live Game Monitoring</p>
               </div>
             </div>
@@ -101,7 +101,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] relative">
+      <div className="flex flex-1 min-h-0 relative" style={{height: 'calc(100dvh - 120px)'}}>
         {/* Mobile sidebar backdrop */}
         {tabs.length > 0 && mobileSidebarOpen && (
           <div 
@@ -203,7 +203,7 @@ export default function Home() {
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-          <div className="max-w-7xl mx-auto p-3 md:p-8">
+          <div className="max-w-7xl mx-auto p-3 pb-24 md:pb-8 md:p-8">
             {activeTab ? (
               tabs.find(tab => tab.id === activeTab)?.type === 'player' ? (
                 <PlayerDashboard 
@@ -219,69 +219,6 @@ export default function Home() {
             ) : (
               <div className="flex flex-col items-center justify-center h-full">
                 <div className="max-w-xl w-full mx-4 md:mx-0">
-                  {/* Features */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-10 md:mb-12">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
-                        <TrendingUp className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Trend Analysis</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Track performance patterns across any game range</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-md">
-                        <Activity className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Live Game Tracking</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Real-time stats and updates during games</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
-                        <Target className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Matchup History</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Head-to-head stats and shooting splits</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
-                        <Users className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Multi-Player Compare</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Analyze multiple players side-by-side</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
-                        <TrendingUp className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Performance Insights</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Understand exactly how players are trending</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-md">
-                        <Target className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <h3 className="text-sm md:text-base font-bold text-gray-900 mb-0.5">Parlay Confidence</h3>
-                        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Make informed decisions before placing bets</p>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* CTA */}
                   <div className="text-center">
                     <p className="text-xs md:text-sm text-gray-400 font-medium">
