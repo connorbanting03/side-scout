@@ -141,7 +141,7 @@ export default function Home() {
                 <>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-                      Active Players
+                      Active Players & Teams
                     </h3>
                     {tabs.length > 0 && (
                       <button
