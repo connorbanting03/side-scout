@@ -293,13 +293,17 @@ def prefetch_team_games_incremental(all_teams):
             new_game_ids = {g.get('GAME_ID') for g in games_dict if g.get('GAME_ID')}
             truly_new = new_game_ids - existing_game_ids
 
+            # Always re-save the file to refresh the _cached_at timestamp,
+            # even when no new games were found.  This prevents the api.py
+            # staleness check from treating the file as expired.
+            save_json(cache_path, games_dict)
+
             if truly_new:
                 teams_with_new_games.add(team_id)
-                save_json(cache_path, games_dict)
                 print(f"📥 {len(truly_new)} new game(s) (total: {len(games_dict)})")
             else:
                 skipped += 1
-                print(f"⏭️  no new games")
+                print(f"✅ no new games (re-stamped)")
 
         except Exception as e:
             print(f"FAILED: {e}")
@@ -434,6 +438,22 @@ def prefetch_player_games_incremental(active_players, teams_with_new_games):
     skipped = total_active - total
 
     print(f"\n🏀 Incremental player update: {total} to fetch, {skipped} skipped")
+
+    # Re-stamp skipped player cache files so their _cached_at stays fresh
+    # (prevents api.py staleness checks from treating them as expired)
+    restamped = 0
+    for player in active_players:
+        player_id = player['id']
+        if player_id in players_to_update:
+            continue
+        cache_path = os.path.join(CACHE_DIR, 'player_games', f'{player_id}.json')
+        existing = load_existing_cache(cache_path)
+        if existing is not None:
+            save_json(cache_path, existing)
+            restamped += 1
+    if restamped:
+        print(f"  🔄 Re-stamped {restamped} unchanged player cache files")
+
     if total == 0:
         print("  ✅ All players already up to date!")
         return

@@ -48,22 +48,53 @@ def load_cache(filepath, max_age_hours=CACHE_MAX_AGE_HOURS):
         return None
 
 
+def load_cache_persistent(filepath):
+    """Load data from a JSON cache file WITHOUT any staleness check.
+    Game logs, rosters, and standings are committed to git and refreshed by
+    the nightly prefetch.  They should ALWAYS be used if the file exists —
+    returning None just because the timestamp is >24 h old causes cascading
+    live-API calls that time out and break the app."""
+    try:
+        if not os.path.isfile(filepath):
+            return None
+        with open(filepath, 'r') as f:
+            payload = json.load(f)
+        return payload.get('data')
+    except Exception as e:
+        print(f"Cache read error ({filepath}): {e}")
+        return None
+
+
+def save_cache(filepath, data):
+    """Write data to a JSON cache file (write-through helper)."""
+    try:
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        payload = {
+            '_cached_at': datetime.utcnow().isoformat() + 'Z',
+            'data': data
+        }
+        with open(filepath, 'w') as f:
+            json.dump(payload, f, default=str)
+    except Exception as e:
+        print(f"Cache write error ({filepath}): {e}")
+
+
 def load_player_games_cache(player_id):
     """Load cached player game log. Returns dict with games/team/jersey/team_id or None."""
     filepath = os.path.join(CACHE_DIR, 'player_games', f'{player_id}.json')
-    return load_cache(filepath)
+    return load_cache_persistent(filepath)
 
 
 def load_team_games_cache(team_id):
     """Load cached team game log. Returns list of game dicts or None."""
     filepath = os.path.join(CACHE_DIR, 'team_games', f'{team_id}.json')
-    return load_cache(filepath)
+    return load_cache_persistent(filepath)
 
 
 def load_team_standings_cache(team_id):
     """Load cached team standings. Returns standings dict or None."""
     filepath = os.path.join(CACHE_DIR, 'team_standings.json')
-    all_standings = load_cache(filepath)
+    all_standings = load_cache_persistent(filepath)
     if all_standings and str(team_id) in all_standings:
         return all_standings[str(team_id)]
     return None
@@ -72,7 +103,7 @@ def load_team_standings_cache(team_id):
 def load_roster_cache(team_id):
     """Load cached team roster. Returns list of player dicts or None."""
     filepath = os.path.join(CACHE_DIR, 'rosters', f'{team_id}.json')
-    return load_cache(filepath)
+    return load_cache_persistent(filepath)
 
 
 def get_player_team_id_from_cache(player_id):
@@ -84,7 +115,7 @@ def get_player_team_id_from_cache(player_id):
         return cached['team_id']
 
     # Fallback: search rosters cache for this player
-    rosters_data = load_cache(os.path.join(CACHE_DIR, 'all_rosters.json'))
+    rosters_data = load_cache_persistent(os.path.join(CACHE_DIR, 'all_rosters.json'))
     if rosters_data:
         for team_id_str, roster in rosters_data.items():
             for p in roster:
@@ -413,6 +444,7 @@ def get_player_games(player_id):
         
         team_abbr = None
         jersey = None
+        team_id_val = None
         
         if 'TEAM_ABBREVIATION' in headers:
             team_idx = headers.index('TEAM_ABBREVIATION')
@@ -421,13 +453,13 @@ def get_player_games(player_id):
         if 'JERSEY' in headers:
             jersey_idx = headers.index('JERSEY')
             jersey = player_data[jersey_idx] if len(player_data) > jersey_idx else None
+
+        if 'TEAM_ID' in headers:
+            tid_idx = headers.index('TEAM_ID')
+            team_id_val = player_data[tid_idx] if len(player_data) > tid_idx else None
         
-        # Get last N games — .copy() avoids pandas SettingWithCopyWarning when
-        # we later mutate the MIN column on a slice from games_df.
-        last_games = games_df.head(limit).copy()
-        
-        # Convert MIN to numeric if it's in string format (e.g., "35:42" -> 35.7)
-        if 'MIN' in last_games.columns:
+        # Convert MIN on the FULL dataframe so cached values are numeric
+        if 'MIN' in games_df.columns:
             def convert_minutes(min_val):
                 if pd.isna(min_val):
                     return 0
@@ -435,30 +467,37 @@ def get_player_games(player_id):
                     parts = min_val.split(':')
                     return float(parts[0]) + float(parts[1]) / 60
                 return float(min_val)
-            
-            last_games['MIN'] = last_games['MIN'].apply(convert_minutes)
+            games_df = games_df.copy()
+            games_df['MIN'] = games_df['MIN'].apply(convert_minutes)
+        
+        # Build ALL games dict for write-through cache
+        all_games_dict = games_df.to_dict('records')
+        for game in all_games_dict:
+            for key, value in game.items():
+                if pd.isna(value):
+                    game[key] = None
+        
+        # ---- Write-through: save full game log so future requests are cache hits ----
+        save_cache(
+            os.path.join(CACHE_DIR, 'player_games', f'{player_id}.json'),
+            {'games': all_games_dict, 'total_games': len(games_df),
+             'team': team_abbr, 'jersey': jersey, 'team_id': team_id_val}
+        )
+        
+        # Slice for response
+        limited_games = all_games_dict[:limit]
         
         # Calculate averages
         stats_columns = ['PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 
                         'FTM', 'FTA', 'FT_PCT', 'REB', 'AST', 'STL', 'BLK', 'TOV', 
                         'PF', 'PLUS_MINUS', 'MIN']
-        
         averages = {}
         for col in stats_columns:
-            if col in last_games.columns:
-                mean_val = last_games[col].mean()
-                # Replace NaN with 0 to avoid JSON serialization issues
-                averages[col] = 0.0 if pd.isna(mean_val) else float(mean_val)
-        
-        # Convert games to dict and replace NaN values
-        games_dict = last_games.to_dict('records')
-        for game in games_dict:
-            for key, value in game.items():
-                if pd.isna(value):
-                    game[key] = None
+            values = [g.get(col, 0) or 0 for g in limited_games]
+            averages[col] = sum(values) / len(values) if values else 0.0
         
         return jsonify({
-            'games': games_dict,
+            'games': limited_games,
             'averages': averages,
             'total_games': len(games_df),
             'team': team_abbr,
@@ -570,7 +609,18 @@ def get_team_games(team_id):
             for key, value in game.items():
                 if pd.isna(value):
                     game[key] = None
-        
+
+        # ---- Write-through: save ALL games so future requests are cache hits ----
+        full_games_df = games_df.copy()
+        if 'OPP_PTS' not in full_games_df.columns and 'PTS' in full_games_df.columns and 'PLUS_MINUS' in full_games_df.columns:
+            full_games_df['OPP_PTS'] = full_games_df['PTS'] - full_games_df['PLUS_MINUS']
+        full_games_dict = full_games_df.to_dict('records')
+        for g in full_games_dict:
+            for k, v in g.items():
+                if pd.isna(v):
+                    g[k] = None
+        save_cache(os.path.join(CACHE_DIR, 'team_games', f'{team_id}.json'), full_games_dict)
+
         return jsonify({
             'games': games_dict,
             'averages': averages,
