@@ -563,6 +563,50 @@ def prefetch_player_games_incremental(active_players, teams_with_new_games):
         if len(failed) > 10:
             print(f"    ... and {len(failed) - 10} more")
 
+def prefetch_scoreboard():
+    """
+    Cache 6: Today's game schedule.
+    Fetches the NBA scoreboard and extracts a slim schedule with team IDs,
+    game start times, and status.  The frontend uses this to know instantly
+    whether a player/team has a game today without hitting the live API.
+    One NBA API call.
+    """
+    print("\n📺 Caching today's schedule (scoreboard)...")
+    try:
+        from nba_api.live.nba.endpoints import scoreboard as live_scoreboard
+        sb = live_scoreboard.ScoreBoard()
+        sb_dict = sb.get_dict()
+
+        games_today = []
+        for game in sb_dict.get('scoreboard', {}).get('games', []):
+            games_today.append({
+                'gameId': game['gameId'],
+                'status': game.get('gameStatus', 1),
+                'statusText': game.get('gameStatusText', ''),
+                'gameTimeUTC': game.get('gameTimeUTC', ''),
+                'gameEt': game.get('gameEt', ''),
+                'homeTeam': {
+                    'teamId': game['homeTeam']['teamId'],
+                    'tricode': game['homeTeam'].get('teamTricode', ''),
+                    'teamName': game['homeTeam'].get('teamName', ''),
+                    'wins': game['homeTeam'].get('wins', 0),
+                    'losses': game['homeTeam'].get('losses', 0),
+                },
+                'awayTeam': {
+                    'teamId': game['awayTeam']['teamId'],
+                    'tricode': game['awayTeam'].get('teamTricode', ''),
+                    'teamName': game['awayTeam'].get('teamName', ''),
+                    'wins': game['awayTeam'].get('wins', 0),
+                    'losses': game['awayTeam'].get('losses', 0),
+                },
+            })
+
+        save_json(os.path.join(CACHE_DIR, 'todays_schedule.json'), games_today)
+        print(f"  📊 {len(games_today)} games on today's schedule")
+    except Exception as e:
+        print(f"  ❌ Failed to cache scoreboard: {e}")
+
+
 def main():
     quick_mode = '--quick' in sys.argv
     update_mode = '--update' in sys.argv
@@ -584,9 +628,10 @@ def main():
     start = time.time()
     ensure_cache_dirs()
 
-    # Always refresh directory + standings (directory = no API calls, standings = 1 call)
+    # Always refresh directory + standings + schedule (lightweight: ~2 API calls total)
     active_players, all_teams = prefetch_directory()
     prefetch_standings()
+    prefetch_scoreboard()
 
     if quick_mode:
         pass  # Done — directory + standings only

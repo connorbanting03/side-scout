@@ -139,6 +139,13 @@ def get_scoreboard_cached():
     _scoreboard_cache['fetched_at'] = now
     return _scoreboard_cache['data']
 
+
+def load_todays_schedule_cache():
+    """Load today's schedule from the prefetched cache file.
+    Returns the list of games or None if missing."""
+    filepath = os.path.join(CACHE_DIR, 'todays_schedule.json')
+    return load_cache(filepath, max_age_hours=18)  # Schedule valid for 18h
+
 # Configure NBA API timeout (monkey patch)
 try:
     from nba_api.library.http import NBAStatsHTTP
@@ -425,6 +432,7 @@ def get_player_games(player_id):
                 'total_games': cached.get('total_games', len(all_games)),
                 'team': cached.get('team'),
                 'jersey': cached.get('jersey'),
+                'team_id': cached.get('team_id'),
             })
 
         # ---- Cache miss: call NBA API ----
@@ -501,7 +509,8 @@ def get_player_games(player_id):
             'averages': averages,
             'total_games': len(games_df),
             'team': team_abbr,
-            'jersey': jersey
+            'jersey': jersey,
+            'team_id': team_id_val,
         })
     except (Timeout, ReadTimeout, ConnectionError) as e:
         return jsonify(format_timeout_error()), 503
@@ -728,6 +737,48 @@ def get_team_standings(team_id):
         error_details = traceback.format_exc()
         print(f"Error in get_team_standings: {error_details}")
         return jsonify({'error': str(e), 'message': 'Failed to fetch team standings', 'details': error_details}), 400
+
+@app.route('/api/schedule', methods=['GET'])
+def get_todays_schedule():
+    """Return today's game schedule from the prefetched cache.
+    This is a lightweight endpoint — no NBA API call, just a JSON file read.
+    The frontend uses this to instantly know which teams play today and when,
+    before deciding whether to poll the heavier /api/live/* endpoints."""
+    try:
+        cached = load_todays_schedule_cache()
+        if cached is not None:
+            return jsonify({'games': cached})
+
+        # Cache miss — fall back to live scoreboard and build schedule on the fly
+        print('[CACHE MISS] todays_schedule.json - fetching live scoreboard')
+        sb_dict = get_scoreboard_cached()
+        games = []
+        for game in sb_dict.get('scoreboard', {}).get('games', []):
+            games.append({
+                'gameId': game['gameId'],
+                'status': game.get('gameStatus', 1),
+                'statusText': game.get('gameStatusText', ''),
+                'gameTimeUTC': game.get('gameTimeUTC', ''),
+                'gameEt': game.get('gameEt', ''),
+                'homeTeam': {
+                    'teamId': game['homeTeam']['teamId'],
+                    'tricode': game['homeTeam'].get('teamTricode', ''),
+                    'teamName': game['homeTeam'].get('teamName', ''),
+                    'wins': game['homeTeam'].get('wins', 0),
+                    'losses': game['homeTeam'].get('losses', 0),
+                },
+                'awayTeam': {
+                    'teamId': game['awayTeam']['teamId'],
+                    'tricode': game['awayTeam'].get('teamTricode', ''),
+                    'teamName': game['awayTeam'].get('teamName', ''),
+                    'wins': game['awayTeam'].get('wins', 0),
+                    'losses': game['awayTeam'].get('losses', 0),
+                },
+            })
+        return jsonify({'games': games})
+    except Exception as e:
+        return jsonify({'games': [], 'error': str(e)}), 200
+
 
 @app.route('/api/scoreboard', methods=['GET'])
 @retry_with_backoff(max_retries=2, initial_delay=1)

@@ -271,7 +271,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
 
       {/* Live Game Section */}
       {config.liveGame && (
-        <LiveGameSection entityType="player" entityId={player.id} />
+        <LiveGameSection entityType="player" entityId={player.id} teamId={data.team_id ?? undefined} />
       )}
 
       {/* Key Stats Grid */}

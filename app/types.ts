@@ -60,6 +60,7 @@ export interface PlayerGamesData {
   total_games: number;
   team?: string | null;
   jersey?: string | null;
+  team_id?: number | null;
 }
 
 export interface TeamGamesData {
@@ -92,6 +93,26 @@ export function isPlayer(result: SearchResult): result is Player {
 
 export function isTeam(result: SearchResult): result is Team {
   return 'abbreviation' in result;
+}
+
+// Schedule Types (from prefetched cache — no live API call)
+
+export interface ScheduleTeamInfo {
+  teamId: number;
+  tricode: string;
+  teamName: string;
+  wins: number;
+  losses: number;
+}
+
+export interface ScheduleGame {
+  gameId: string;
+  status: number; // 1=scheduled, 2=in progress, 3=final
+  statusText: string;
+  gameTimeUTC: string;
+  gameEt: string;
+  homeTeam: ScheduleTeamInfo;
+  awayTeam: ScheduleTeamInfo;
 }
 
 // Live Game Types

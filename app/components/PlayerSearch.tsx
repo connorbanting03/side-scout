@@ -20,7 +20,9 @@ interface Directory {
 let directoryPromise: Promise<Directory> | null = null;
 let cachedDirectory: Directory | null = null;
 
-function loadDirectory(): Promise<Directory> {
+export type { Directory };
+
+export function loadDirectory(): Promise<Directory> {
   if (cachedDirectory) return Promise.resolve(cachedDirectory);
   if (directoryPromise) return directoryPromise;
 

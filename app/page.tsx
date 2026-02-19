@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import PlayerSearch from './components/PlayerSearch';
+import { loadDirectory, type Directory } from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
 import { Player, Team } from './types';
@@ -21,12 +22,113 @@ interface TeamTab {
 
 type Tab = PlayerTab | TeamTab;
 
+// ---- Deep-link helpers ----
+
+/** Build a shareable URL search string from current tabs. */
+function buildSearchParam(tabs: Tab[]): string {
+  if (tabs.length === 0) return '';
+  const names = tabs.map(tab =>
+    tab.type === 'player' ? tab.player.full_name : tab.team.full_name
+  );
+  return names.join(',');
+}
+
+/** Try to match a search term against the directory. Returns a Player or Team or null. */
+function resolveSearchTerm(
+  term: string,
+  directory: Directory
+): { type: 'player'; player: Player } | { type: 'team'; team: Team } | null {
+  const q = term.trim().toLowerCase();
+  if (!q) return null;
+
+  // Exact match first (case-insensitive)
+  const exactPlayer = directory.players.find(p => p.full_name.toLowerCase() === q);
+  if (exactPlayer) return { type: 'player', player: exactPlayer };
+
+  const exactTeam = directory.teams.find(t =>
+    t.full_name.toLowerCase() === q ||
+    t.abbreviation.toLowerCase() === q ||
+    t.nickname.toLowerCase() === q
+  );
+  if (exactTeam) return { type: 'team', team: exactTeam };
+
+  // Partial / includes match
+  const partialPlayer = directory.players.find(p => p.full_name.toLowerCase().includes(q));
+  if (partialPlayer) return { type: 'player', player: partialPlayer };
+
+  const partialTeam = directory.teams.find(t =>
+    t.full_name.toLowerCase().includes(q) ||
+    t.city.toLowerCase().includes(q) ||
+    t.nickname.toLowerCase().includes(q)
+  );
+  if (partialTeam) return { type: 'team', team: partialTeam };
+
+  return null;
+}
+
 export default function Home() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [gameLimit, setGameLimit] = useState(10);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const deepLinkProcessed = useRef(false);
+
+  // ---- Sync URL ↔ tabs ----
+
+  // On mount: read ?search= from URL and auto-open matching tabs
+  useEffect(() => {
+    if (deepLinkProcessed.current) return;
+    deepLinkProcessed.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const searchParam = params.get('search');
+    if (!searchParam) return;
+
+    const terms = searchParam.split(',').map(t => t.trim()).filter(Boolean);
+    if (terms.length === 0) return;
+
+    loadDirectory().then(dir => {
+      const newTabs: Tab[] = [];
+      const seen = new Set<string>();
+
+      for (const term of terms) {
+        const match = resolveSearchTerm(term, dir);
+        if (!match) continue;
+
+        const tabId = match.type === 'player'
+          ? `player-${match.player.id}`
+          : `team-${match.team.id}`;
+
+        if (seen.has(tabId)) continue;
+        seen.add(tabId);
+
+        if (match.type === 'player') {
+          newTabs.push({ type: 'player', player: match.player, id: tabId });
+        } else {
+          newTabs.push({ type: 'team', team: match.team, id: tabId });
+        }
+      }
+
+      if (newTabs.length > 0) {
+        setTabs(newTabs);
+        setActiveTab(newTabs[0].id);
+      }
+    });
+  }, []);
+
+  // When tabs change: update URL so the link is always shareable
+  useEffect(() => {
+    const search = buildSearchParam(tabs);
+    const url = new URL(window.location.href);
+    if (search) {
+      url.searchParams.set('search', search);
+    } else {
+      url.searchParams.delete('search');
+    }
+    // Replace state (don't push) to avoid polluting browser history
+    window.history.replaceState({}, '', url.toString());
+  }, [tabs]);
 
   const addPlayer = (player: Player) => {
     const tabId = `player-${player.id}`;
@@ -39,7 +141,7 @@ export default function Home() {
     }
 
     const newTab: PlayerTab = { type: 'player', player, id: tabId };
-    setTabs([...tabs, newTab]);
+    setTabs(prev => [...prev, newTab]);
     setActiveTab(tabId);
   };
 
@@ -54,7 +156,7 @@ export default function Home() {
     }
 
     const newTab: TeamTab = { type: 'team', team, id: tabId };
-    setTabs([...tabs, newTab]);
+    setTabs(prev => [...prev, newTab]);
     setActiveTab(tabId);
   };
 

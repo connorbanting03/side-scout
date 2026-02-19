@@ -1,13 +1,56 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Radio, Clock, Trophy, Calendar, RefreshCw } from 'lucide-react';
-import { LiveGameData, LivePlayerStats, LiveTeamStats, LiveGameInfo, GameStats } from '../types';
+import { LiveGameData, LivePlayerStats, LiveTeamStats, LiveGameInfo, GameStats, ScheduleGame } from '../types';
 import { API_BASE_URL } from '../lib/config';
 
 interface LiveGameSectionProps {
   entityType: 'player' | 'team';
   entityId: number;
+  teamId?: number; // If known (player's team), skip roster lookup
+}
+
+// ---- Schedule cache (loaded once, shared across all LiveGameSection instances) ----
+let schedulePromise: Promise<ScheduleGame[]> | null = null;
+let cachedSchedule: ScheduleGame[] | null = null;
+let scheduleFetchedAt = 0;
+const SCHEDULE_CACHE_TTL = 5 * 60 * 1000; // 5 min client-side TTL
+
+function loadSchedule(): Promise<ScheduleGame[]> {
+  const now = Date.now();
+  if (cachedSchedule && (now - scheduleFetchedAt) < SCHEDULE_CACHE_TTL) {
+    return Promise.resolve(cachedSchedule);
+  }
+  if (schedulePromise) return schedulePromise;
+
+  schedulePromise = fetch(`${API_BASE_URL}/api/schedule`)
+    .then(res => res.json())
+    .then((data: { games: ScheduleGame[] }) => {
+      cachedSchedule = data.games || [];
+      scheduleFetchedAt = Date.now();
+      schedulePromise = null;
+      return cachedSchedule;
+    })
+    .catch(err => {
+      console.error('Failed to load schedule:', err);
+      schedulePromise = null;
+      return [] as ScheduleGame[];
+    });
+
+  return schedulePromise;
+}
+
+/** Check whether a game's start time has passed (using gameTimeUTC). */
+function hasGameStarted(game: ScheduleGame): boolean {
+  if (game.status >= 2) return true; // Already live or final
+  if (!game.gameTimeUTC) return false;
+  try {
+    const startTime = new Date(game.gameTimeUTC).getTime();
+    return Date.now() >= startTime;
+  } catch {
+    return false;
+  }
 }
 
 const formatLiveMinutes = (isoMinutes: string): string => {
@@ -21,11 +64,94 @@ const formatLiveMinutes = (isoMinutes: string): string => {
   return isoMinutes;
 };
 
-export default function LiveGameSection({ entityType, entityId }: LiveGameSectionProps) {
+export default function LiveGameSection({ entityType, entityId, teamId }: LiveGameSectionProps) {
+  // Phase 1: schedule check (cheap, from cache)
+  const [scheduleGame, setScheduleGame] = useState<ScheduleGame | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [noGame, setNoGame] = useState(false);
+
+  // Phase 2: live data (only fetched after game has started)
   const [data, setData] = useState<LiveGameData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [liveActive, setLiveActive] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Resolve which team ID to look up in the schedule.
+  // For team entities, entityId IS the team ID.
+  // For player entities, we need the teamId prop or fall back to roster lookup.
+  const resolvedTeamId = entityType === 'team' ? entityId : teamId;
+
+  // ---- PHASE 1: Check the cached schedule ----
+  useEffect(() => {
+    let cancelled = false;
+    setScheduleLoading(true);
+    setNoGame(false);
+    setScheduleGame(null);
+    setData(null);
+    setLiveActive(false);
+
+    loadSchedule().then(games => {
+      if (cancelled) return;
+
+      let found: ScheduleGame | null = null;
+
+      if (entityType === 'team') {
+        found = games.find(g =>
+          g.homeTeam.teamId === entityId || g.awayTeam.teamId === entityId
+        ) || null;
+      } else if (resolvedTeamId) {
+        found = games.find(g =>
+          g.homeTeam.teamId === resolvedTeamId || g.awayTeam.teamId === resolvedTeamId
+        ) || null;
+      }
+
+      if (!found) {
+        // No game today — if player and we don't have teamId, try the live endpoint
+        // as a fallback (handles case where teamId wasn't provided)
+        if (entityType === 'player' && !resolvedTeamId) {
+          setScheduleLoading(false);
+          // Fall back to the live endpoint which does its own team lookup
+          setLiveActive(true);
+        } else {
+          setNoGame(true);
+          setScheduleLoading(false);
+        }
+        return;
+      }
+
+      setScheduleGame(found);
+      setScheduleLoading(false);
+
+      // If game has already started or is final, immediately go to live mode
+      if (hasGameStarted(found)) {
+        setLiveActive(true);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [entityType, entityId, resolvedTeamId]);
+
+  // ---- PHASE 1b: For scheduled games, poll to detect when start time arrives ----
+  useEffect(() => {
+    if (!scheduleGame || liveActive) return;
+    if (scheduleGame.status >= 2) return; // Already started
+
+    // Check every 60 seconds if game start time has arrived
+    const checkStart = () => {
+      if (hasGameStarted(scheduleGame)) {
+        setLiveActive(true);
+      }
+    };
+
+    startCheckIntervalRef.current = setInterval(checkStart, 60000);
+    return () => {
+      if (startCheckIntervalRef.current) clearInterval(startCheckIntervalRef.current);
+    };
+  }, [scheduleGame, liveActive]);
+
+  // ---- PHASE 2: Live data fetching (only when liveActive is true) ----
   const fetchLiveData = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/live/${entityType}/${entityId}`);
@@ -33,44 +159,54 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
       const result: LiveGameData = await response.json();
       setData(result);
       setLastUpdated(new Date());
+
+      // If the live endpoint says no game, update our state
+      if (!result.hasGame) {
+        setNoGame(true);
+        setLiveActive(false);
+      }
     } catch (err) {
       console.error('Error fetching live data:', err);
       setData({ live: false });
-    } finally {
-      setLoading(false);
     }
   }, [entityType, entityId]);
 
   useEffect(() => {
+    if (!liveActive) return;
+
+    // Fetch immediately
     fetchLiveData();
 
-    const interval = setInterval(() => {
+    // Set up polling based on game status
+    const setupPolling = () => {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+
+      // If we have live data, adjust interval based on status
       if (data?.game?.status === 2) {
-        fetchLiveData();
+        // Live game — poll every 30 seconds
+        liveIntervalRef.current = setInterval(fetchLiveData, 30000);
+      } else if (data?.game?.status === 1) {
+        // Scheduled — poll every 2 minutes to catch tip-off
+        liveIntervalRef.current = setInterval(fetchLiveData, 120000);
+      } else if (data?.game?.status === 3) {
+        // Final — no more polling needed
+      } else {
+        // Unknown / first load — poll every 60 seconds
+        liveIntervalRef.current = setInterval(fetchLiveData, 60000);
       }
-    }, 30000);
+    };
 
-    return () => clearInterval(interval);
-  }, [fetchLiveData]); // eslint-disable-line react-hooks/exhaustive-deps
+    setupPolling();
 
-  useEffect(() => {
-    // Only set up auto-refresh if there's a game today
-    if (!data?.hasGame || !data?.game) return;
+    return () => {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+    };
+  }, [liveActive, data?.game?.status, fetchLiveData]);
 
-    // Refresh every 30 seconds if game is live (status 2)
-    if (data.game.status === 2) {
-      const liveInterval = setInterval(fetchLiveData, 30000);
-      return () => clearInterval(liveInterval);
-    }
+  // ---- RENDERING ----
 
-    // Refresh every 2 minutes if game is scheduled (status 1)
-    if (data.game.status === 1) {
-      const scheduledInterval = setInterval(fetchLiveData, 120000);
-      return () => clearInterval(scheduledInterval);
-    }
-  }, [data?.game?.status, data?.hasGame, fetchLiveData]);
-
-  if (loading) {
+  // Loading schedule check
+  if (scheduleLoading) {
     return (
       <div className="bg-gradient-to-br from-white to-indigo-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-200 animate-pulse">
         <div className="flex items-center gap-3">
@@ -81,11 +217,83 @@ export default function LiveGameSection({ entityType, entityId }: LiveGameSectio
     );
   }
 
-  // Show game section if there's a game today (scheduled, live, or final)
+  // No game today — render nothing
+  if (noGame && !scheduleGame) {
+    return null;
+  }
+
+  // ---- PRE-GAME: Show schedule card before live data is available ----
+  if (scheduleGame && !liveActive) {
+    const isHome = entityType === 'team'
+      ? scheduleGame.homeTeam.teamId === entityId
+      : scheduleGame.homeTeam.teamId === resolvedTeamId;
+
+    return (
+      <div className="bg-gradient-to-br from-blue-50/30 via-white to-indigo-50/30 rounded-2xl p-4 md:p-6 shadow-lg border-2 border-indigo-200 relative overflow-hidden">
+        <div className="relative">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <Radio className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0 text-indigo-500" />
+              <h3 className="text-sm md:text-lg font-bold text-gray-900 truncate">Game Today</h3>
+              <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5">
+                <Calendar className="w-3 h-3 text-blue-500" />
+                <span className="text-blue-600 font-bold text-xs uppercase tracking-wider">
+                  {scheduleGame.statusText || 'Scheduled'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Scoreboard preview */}
+          <div className="flex items-center justify-center gap-4 md:gap-10 py-2 md:py-3">
+            <div className={`flex flex-col items-center gap-0.5 ${!isHome ? 'scale-110' : 'opacity-70'} transition-all`}>
+              <span className="text-xl md:text-2xl font-black text-indigo-700">
+                {scheduleGame.awayTeam.tricode}
+              </span>
+              <span className="text-xs text-gray-400 font-semibold">
+                {scheduleGame.awayTeam.wins}-{scheduleGame.awayTeam.losses}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2 text-gray-400">
+                <Clock className="w-4 h-4" />
+                <span className="text-base font-bold">{scheduleGame.statusText}</span>
+              </div>
+            </div>
+
+            <div className={`flex flex-col items-center gap-0.5 ${isHome ? 'scale-110' : 'opacity-70'} transition-all`}>
+              <span className="text-xl md:text-2xl font-black text-indigo-700">
+                {scheduleGame.homeTeam.tricode}
+              </span>
+              <span className="text-xs text-gray-400 font-semibold">
+                {scheduleGame.homeTeam.wins}-{scheduleGame.homeTeam.losses}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- LIVE / FINAL: Waiting for live data to load ----
+  if (liveActive && !data) {
+    return (
+      <div className="bg-gradient-to-br from-white to-indigo-50 rounded-2xl p-6 shadow-xl border-2 border-indigo-200 animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 bg-indigo-300 rounded-full" />
+          <div className="h-6 w-48 bg-indigo-100 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  // If live data came back with no game, render nothing
   if (!data?.hasGame || !data.game) {
     return null;
   }
 
+  // ---- FULL LIVE / FINAL RENDER ----
   const { game, playerStats, teamStats, matchupHistory } = data;
   const isLive = game.status === 2;
   const isFinal = game.status === 3;
