@@ -20,6 +20,15 @@ CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
 # Cache is considered stale after this many hours
 CACHE_MAX_AGE_HOURS = 24
 
+# =====================================================
+# CACHE-ONLY MODE
+# Set CACHE_ONLY=true to serve exclusively from prefetched cache files.
+# No NBA API calls will be made — useful when the API is down or rate-limited.
+# =====================================================
+CACHE_ONLY_MODE = os.environ.get('CACHE_ONLY', 'true').lower() == 'true'
+if CACHE_ONLY_MODE:
+    print("⚠️  CACHE-ONLY MODE ENABLED — no live NBA API calls will be made")
+
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path='')
 CORS(app)
 
@@ -29,12 +38,16 @@ CORS(app)
 # =====================================================
 
 def load_cache(filepath, max_age_hours=CACHE_MAX_AGE_HOURS):
-    """Load data from a JSON cache file. Returns None if missing or stale."""
+    """Load data from a JSON cache file. Returns None if missing or stale.
+    In CACHE_ONLY_MODE, stale data is still returned (never None for age)."""
     try:
         if not os.path.isfile(filepath):
             return None
         with open(filepath, 'r') as f:
             payload = json.load(f)
+        # In cache-only mode, accept stale data — anything on disk is valid
+        if CACHE_ONLY_MODE:
+            return payload.get('data')
         # Check staleness
         cached_at = payload.get('_cached_at', '')
         if cached_at:
@@ -130,9 +143,13 @@ SCOREBOARD_CACHE_TTL = 60  # seconds
 
 def get_scoreboard_cached():
     """Return today's scoreboard, reusing a cached copy within the TTL window.
-    The scoreboard is the same for all players/teams, so one call serves everyone."""
+    The scoreboard is the same for all players/teams, so one call serves everyone.
+    In CACHE_ONLY_MODE, returns whatever in-memory data exists (even stale) or None."""
     now = time.time()
     if _scoreboard_cache['data'] and (now - _scoreboard_cache['fetched_at']) < SCOREBOARD_CACHE_TTL:
+        return _scoreboard_cache['data']
+    if CACHE_ONLY_MODE:
+        # Never call the live API — return stale in-memory data or None
         return _scoreboard_cache['data']
     sb = scoreboard.ScoreBoard()
     _scoreboard_cache['data'] = sb.get_dict()
@@ -232,6 +249,15 @@ def format_timeout_error():
         'retry': True
     }
 
+def format_cache_only_error(entity='data'):
+    """Format a user-friendly cache-only mode error when data is not in cache"""
+    return {
+        'error': 'cache_only_mode',
+        'message': f'Cache-only mode is active and {entity} is not available in the local cache. Data will be available after the next cache refresh.',
+        'retry': False,
+        'cache_only': True
+    }
+
 # =====================================================
 # DIRECTORY ENDPOINT (one-time load for frontend search)
 # =====================================================
@@ -252,7 +278,10 @@ def get_directory():
         # Fallback to live API if cache is missing — uses CommonAllPlayers so
         # rookies and mid-season signings aren't excluded like the static bundle.
         if cached_players is None:
-            cached_players = get_all_active_players_live()
+            if CACHE_ONLY_MODE:
+                cached_players = get_all_players_cached()  # static bundle fallback (no API call)
+            else:
+                cached_players = get_all_active_players_live()
         if cached_teams is None:
             cached_teams = get_all_teams_cached()
         if cached_rosters is None:
@@ -300,6 +329,8 @@ def cache_status():
     status['team_games_count'] = len(os.listdir(team_games_dir)) if os.path.isdir(team_games_dir) else 0
     status['rosters_count'] = len(os.listdir(rosters_dir)) if os.path.isdir(rosters_dir) else 0
 
+    status['cache_only_mode'] = CACHE_ONLY_MODE
+
     return jsonify(status)
 
 
@@ -307,6 +338,8 @@ def cache_status():
 @retry_with_backoff(max_retries=3, initial_delay=2)
 def get_player_by_id(player_id):
     """Get player career stats by player ID"""
+    if CACHE_ONLY_MODE:
+        return jsonify(format_cache_only_error('player career stats')), 503
     try:
         career = playercareerstats.PlayerCareerStats(player_id=player_id)
         info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
@@ -377,6 +410,10 @@ def get_team_players(team_id):
             return jsonify({'players': cached})
 
         print(f"[CACHE MISS] roster for team {team_id} - calling NBA API")
+
+        if CACHE_ONLY_MODE:
+            return jsonify(format_cache_only_error('team roster')), 503
+
         from nba_api.stats.endpoints import commonteamroster
         
         # Get current season roster
@@ -437,6 +474,10 @@ def get_player_games(player_id):
 
         # ---- Cache miss: call NBA API ----
         print(f"[CACHE MISS] player games for {player_id} - calling NBA API")
+
+        if CACHE_ONLY_MODE:
+            return jsonify(format_cache_only_error('player game log')), 503
+
         gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=season)
         games_df = gamelog.get_data_frames()[0]
         
@@ -560,6 +601,10 @@ def get_team_games(team_id):
 
         # ---- Cache miss: call NBA API ----
         print(f"[CACHE MISS] team games for {team_id} - calling NBA API")
+
+        if CACHE_ONLY_MODE:
+            return jsonify(format_cache_only_error('team game log')), 503
+
         # Get team game log using correct endpoint
         from nba_api.stats.endpoints import teamgamelogs
         
@@ -659,6 +704,10 @@ def get_standings():
             return jsonify({'standings': cached})
 
         print("[CACHE MISS] standings - calling NBA API")
+
+        if CACHE_ONLY_MODE:
+            return jsonify(format_cache_only_error('standings')), 503
+
         from nba_api.stats.endpoints import leaguestandings
         standings = leaguestandings.LeagueStandings(season='2025-26')
         standings_dict = standings.get_dict()
@@ -698,6 +747,10 @@ def get_team_standings(team_id):
             return jsonify(cached)
 
         print(f"[CACHE MISS] standings for team {team_id} - calling NBA API")
+
+        if CACHE_ONLY_MODE:
+            return jsonify(format_cache_only_error('team standings')), 503
+
         from nba_api.stats.endpoints import leaguestandings
         standings = leaguestandings.LeagueStandings(season='2025-26')
         standings_dict = standings.get_dict()
@@ -750,6 +803,10 @@ def get_todays_schedule():
             return jsonify({'games': cached})
 
         # Cache miss — fall back to live scoreboard and build schedule on the fly
+        if CACHE_ONLY_MODE:
+            print('[CACHE-ONLY] todays_schedule.json missing — returning empty schedule')
+            return jsonify({'games': [], 'cache_only': True})
+
         print('[CACHE MISS] todays_schedule.json - fetching live scoreboard')
         sb_dict = get_scoreboard_cached()
         games = []
@@ -785,7 +842,14 @@ def get_todays_schedule():
 def get_scoreboard():
     """Get today's scoreboard"""
     try:
-        return jsonify(get_scoreboard_cached())
+        sb = get_scoreboard_cached()
+        if sb is None and CACHE_ONLY_MODE:
+            # Build a minimal scoreboard from the schedule cache
+            cached_schedule = load_todays_schedule_cache()
+            return jsonify({'scoreboard': {'games': cached_schedule or []}, 'cache_only': True})
+        if sb is None:
+            return jsonify({'error': 'Scoreboard unavailable'}), 503
+        return jsonify(sb)
     except (Timeout, ReadTimeout, ConnectionError) as e:
         return jsonify(format_timeout_error()), 503
     except Exception as e:
@@ -800,6 +864,9 @@ def get_player_live_game(player_id):
         # ---- OPTIMIZATION: get team_id from cache instead of CommonPlayerInfo API call ----
         team_id = get_player_team_id_from_cache(player_id)
         if not team_id:
+            if CACHE_ONLY_MODE:
+                print(f"[CACHE-ONLY] player team_id for {player_id} not in cache — skipping")
+                return jsonify({'live': False, 'hasGame': False, 'message': 'Player team not in cache', 'cache_only': True})
             # Cache miss — fall back to API (only if cache doesn't have it)
             print(f"[CACHE MISS] player team_id for {player_id} - calling CommonPlayerInfo API")
             info = commonplayerinfo.CommonPlayerInfo(player_id=player_id)
@@ -817,6 +884,38 @@ def get_player_live_game(player_id):
 
         # ---- OPTIMIZATION: use in-memory scoreboard cache (shared across all requests) ----
         sb_dict = get_scoreboard_cached()
+
+        # In cache-only mode, if no live scoreboard data, try schedule cache
+        if sb_dict is None and CACHE_ONLY_MODE:
+            cached_schedule = load_todays_schedule_cache()
+            if not cached_schedule:
+                return jsonify({'live': False, 'hasGame': False, 'message': 'No schedule data in cache', 'cache_only': True})
+            # Find game in schedule cache by team_id
+            for sg in cached_schedule:
+                home_tid = sg.get('homeTeam', {}).get('teamId')
+                away_tid = sg.get('awayTeam', {}).get('teamId')
+                if home_tid == team_id or away_tid == team_id:
+                    is_home = (home_tid == team_id)
+                    opponent_tricode = sg['awayTeam'].get('tricode', '') if is_home else sg['homeTeam'].get('tricode', '')
+                    matchup_history = []
+                    cached_player = load_player_games_cache(player_id)
+                    if cached_player and cached_player.get('games'):
+                        matchup_history = [g for g in cached_player['games']
+                                           if opponent_tricode and opponent_tricode.upper() in (g.get('MATCHUP', '') or '').upper()]
+                    return jsonify({
+                        'live': False, 'hasGame': True, 'cache_only': True,
+                        'game': {
+                            'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
+                            'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
+                            'homeTeam': sg.get('homeTeam', {}), 'awayTeam': sg.get('awayTeam', {}),
+                            'isHome': is_home,
+                        },
+                        'playerStats': None, 'matchupHistory': matchup_history,
+                    })
+            return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today', 'cache_only': True})
+
+        if sb_dict is None:
+            return jsonify({'live': False, 'hasGame': False, 'message': 'Scoreboard unavailable'}), 503
 
         game_found = None
         opponent_tricode = None
@@ -842,7 +941,7 @@ def get_player_live_game(player_id):
 
         # Only fetch box score stats if game has started (status 2=live or 3=final)
         # NOTE: BoxScore is the ONE call we must keep live — it's real-time data
-        if game_status >= 2:
+        if game_status >= 2 and not CACHE_ONLY_MODE:
             try:
                 from nba_api.live.nba.endpoints import boxscore as live_boxscore
                 box = live_boxscore.BoxScore(game_id=game_id)
@@ -888,30 +987,33 @@ def get_player_live_game(player_id):
                 opp_games = [g for g in all_games if opponent_tricode and opponent_tricode.upper() in (g.get('MATCHUP', '') or '').upper()]
                 matchup_history = opp_games
             else:
-                # Cache miss — fall back to API
-                print(f"[CACHE MISS] matchup history for player {player_id} - calling PlayerGameLog API")
-                gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26')
-                games_df = gamelog.get_data_frames()[0]
+                if CACHE_ONLY_MODE:
+                    print(f"[CACHE-ONLY] matchup history for player {player_id} not in cache — skipping")
+                else:
+                    # Cache miss — fall back to API
+                    print(f"[CACHE MISS] matchup history for player {player_id} - calling PlayerGameLog API")
+                    gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26')
+                    games_df = gamelog.get_data_frames()[0]
 
-                opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
+                    opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
 
-                if 'MIN' in opp_games.columns:
-                    def convert_minutes(min_val):
-                        if pd.isna(min_val):
-                            return 0
-                        if isinstance(min_val, str) and ':' in min_val:
-                            parts = min_val.split(':')
-                            return float(parts[0]) + float(parts[1]) / 60
-                        return float(min_val)
-                    opp_games = opp_games.copy()
-                    opp_games['MIN'] = opp_games['MIN'].apply(convert_minutes)
+                    if 'MIN' in opp_games.columns:
+                        def convert_minutes(min_val):
+                            if pd.isna(min_val):
+                                return 0
+                            if isinstance(min_val, str) and ':' in min_val:
+                                parts = min_val.split(':')
+                                return float(parts[0]) + float(parts[1]) / 60
+                            return float(min_val)
+                        opp_games = opp_games.copy()
+                        opp_games['MIN'] = opp_games['MIN'].apply(convert_minutes)
 
-                history_dict = opp_games.to_dict('records')
-                for game in history_dict:
-                    for key, value in game.items():
-                        if pd.isna(value):
-                            game[key] = None
-                matchup_history = history_dict
+                    history_dict = opp_games.to_dict('records')
+                    for game in history_dict:
+                        for key, value in game.items():
+                            if pd.isna(value):
+                                game[key] = None
+                    matchup_history = history_dict
         except Exception as e:
             print(f"Error getting matchup history: {e}")
 
@@ -961,6 +1063,40 @@ def get_team_live_game(team_id):
         # ---- OPTIMIZATION: use in-memory scoreboard cache (shared across all requests) ----
         sb_dict = get_scoreboard_cached()
 
+        # In cache-only mode, if no live scoreboard data, try schedule cache
+        if sb_dict is None and CACHE_ONLY_MODE:
+            cached_schedule = load_todays_schedule_cache()
+            if not cached_schedule:
+                return jsonify({'live': False, 'hasGame': False, 'message': 'No schedule data in cache', 'cache_only': True})
+            for sg in cached_schedule:
+                home_tid = sg.get('homeTeam', {}).get('teamId')
+                away_tid = sg.get('awayTeam', {}).get('teamId')
+                if home_tid == team_id_int or away_tid == team_id_int:
+                    is_home = (home_tid == team_id_int)
+                    opponent_tricode = sg['awayTeam'].get('tricode', '') if is_home else sg['homeTeam'].get('tricode', '')
+                    matchup_history = []
+                    cached_games = load_team_games_cache(team_id)
+                    if cached_games is not None:
+                        opp_games = [g for g in cached_games if opponent_tricode and opponent_tricode.upper() in (g.get('MATCHUP', '') or '').upper()]
+                        for g in opp_games:
+                            if g.get('OPP_PTS') is None and g.get('PTS') is not None and g.get('PLUS_MINUS') is not None:
+                                g['OPP_PTS'] = g['PTS'] - g['PLUS_MINUS']
+                        matchup_history = opp_games
+                    return jsonify({
+                        'live': False, 'hasGame': True, 'cache_only': True,
+                        'game': {
+                            'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
+                            'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
+                            'homeTeam': sg.get('homeTeam', {}), 'awayTeam': sg.get('awayTeam', {}),
+                            'isHome': is_home,
+                        },
+                        'teamStats': None, 'matchupHistory': matchup_history,
+                    })
+            return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today', 'cache_only': True})
+
+        if sb_dict is None:
+            return jsonify({'live': False, 'hasGame': False, 'message': 'Scoreboard unavailable'}), 503
+
         game_found = None
         opponent_tricode = None
         is_home = False
@@ -984,7 +1120,7 @@ def get_team_live_game(team_id):
         # Get team's stats from box score if game has started (status 2=live or 3=final)
         # NOTE: BoxScore is the ONE call we must keep live — it's real-time data
         team_live_stats = None
-        if game_status >= 2:
+        if game_status >= 2 and not CACHE_ONLY_MODE:
             try:
                 from nba_api.live.nba.endpoints import boxscore as live_boxscore
                 box = live_boxscore.BoxScore(game_id=game_found['gameId'])
@@ -1029,23 +1165,26 @@ def get_team_live_game(team_id):
                         g['OPP_PTS'] = g['PTS'] - g['PLUS_MINUS']
                 matchup_history = opp_games
             else:
-                print(f"[CACHE MISS] matchup history for team {team_id} - calling TeamGameLogs API")
-                gamelog = teamgamelogs.TeamGameLogs(team_id_nullable=team_id, season_nullable='2025-26')
-                games_df = gamelog.get_data_frames()[0]
+                if CACHE_ONLY_MODE:
+                    print(f"[CACHE-ONLY] matchup history for team {team_id} not in cache — skipping")
+                else:
+                    print(f"[CACHE MISS] matchup history for team {team_id} - calling TeamGameLogs API")
+                    gamelog = teamgamelogs.TeamGameLogs(team_id_nullable=team_id, season_nullable='2025-26')
+                    games_df = gamelog.get_data_frames()[0]
 
-                opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
+                    opp_games = games_df[games_df['MATCHUP'].str.contains(opponent_tricode, case=False, na=False)]
 
-                # Calculate OPP_PTS if not present
-                if 'OPP_PTS' not in opp_games.columns and 'PTS' in opp_games.columns and 'PLUS_MINUS' in opp_games.columns:
-                    opp_games = opp_games.copy()
-                    opp_games['OPP_PTS'] = opp_games['PTS'] - opp_games['PLUS_MINUS']
+                    # Calculate OPP_PTS if not present
+                    if 'OPP_PTS' not in opp_games.columns and 'PTS' in opp_games.columns and 'PLUS_MINUS' in opp_games.columns:
+                        opp_games = opp_games.copy()
+                        opp_games['OPP_PTS'] = opp_games['PTS'] - opp_games['PLUS_MINUS']
 
-                history_dict = opp_games.to_dict('records')
-                for game in history_dict:
-                    for key, value in game.items():
-                        if pd.isna(value):
-                            game[key] = None
-                matchup_history = history_dict
+                    history_dict = opp_games.to_dict('records')
+                    for game in history_dict:
+                        for key, value in game.items():
+                            if pd.isna(value):
+                                game[key] = None
+                    matchup_history = history_dict
         except Exception as e:
             print(f"Error getting team matchup history: {e}")
 
