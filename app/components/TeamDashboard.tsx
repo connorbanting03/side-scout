@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Shield, Settings } from 'lucide-react';
-import { Team, TeamGamesData } from '../types';
-import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
+import { Team, TeamGamesData, GameStats } from '../types';
+import StatsConfigMenu, { useStatsConfig } from './StatsConfigMenu';
 import LiveGameSection from './LiveGameSection';
 import { API_BASE_URL } from '../lib/config';
 
@@ -15,7 +15,8 @@ interface TeamDashboardProps {
 
 export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   const [data, setData] = useState<TeamGamesData | null>(null);
-  const [standings, setStandings] = useState<any>(null);
+  interface TeamStandings { conference?: string; conference_rank?: number; division?: string; division_rank?: number; wins?: number; losses?: number; win_pct?: number; }
+  const [standings, setStandings] = useState<TeamStandings | null>(null);
   const [loading, setLoading] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
   const [config, setConfig] = useStatsConfig('teamStatsConfig');
@@ -66,15 +67,15 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   }
 
   // Calculate trends
-  const calculateTrend = (games: any[], stat: string) => {
+  const calculateTrend = (games: GameStats[], stat: string) => {
     if (games.length < 4) return { trend: 0, direction: 'stable' };
     
     const midpoint = Math.floor(games.length / 2);
     const recentGames = games.slice(0, midpoint);
     const olderGames = games.slice(midpoint);
     
-    const recentAvg = recentGames.reduce((sum, g) => sum + (g[stat] || 0), 0) / recentGames.length;
-    const olderAvg = olderGames.reduce((sum, g) => sum + (g[stat] || 0), 0) / olderGames.length;
+    const recentAvg = recentGames.reduce((sum, g) => sum + (Number((g as unknown as Record<string, number>)[stat]) || 0), 0) / recentGames.length;
+    const olderAvg = olderGames.reduce((sum, g) => sum + (Number((g as unknown as Record<string, number>)[stat]) || 0), 0) / olderGames.length;
     
     const change = ((recentAvg - olderAvg) / olderAvg) * 100;
     
@@ -89,14 +90,16 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   const defenseTeam = calculateTrend(data.games, 'OPP_PTS');
   const plusMinusTrend = calculateTrend(data.games, 'PLUS_MINUS');
   const fgPctTrend = calculateTrend(data.games, 'FG_PCT');
+
+  // Value-picks style prop trend analysis — mirrors generate_value_picks.py analyze_player()
   // Calculate standard deviation
-  const calculateStdDev = (games: any[], stat: string) => {
-    const values = games.map(g => g[stat]);
+  const calculateStdDev = (games: GameStats[], stat: string) => {
+    const values = games.map(g => Number((g as unknown as Record<string, number>)[stat]) || 0);
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
     const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
     return Math.sqrt(variance);
   };
-  const chartData = data.games.slice().reverse().map((game, idx) => {
+  const chartData = data.games.slice().reverse().map((game) => {
     let opponent = '';
     if (game.MATCHUP.includes('vs.')) {
       opponent = 'vs ' + game.MATCHUP.split('vs.')[1].trim();
@@ -296,6 +299,7 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
             isPercentage={true}
           />
         </div>
+
       </div>
       )}
 

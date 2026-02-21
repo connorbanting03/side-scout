@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Settings } from 'lucide-react';
-import { Player, PlayerGamesData } from '../types';
-import StatsConfigMenu, { StatsConfig, useStatsConfig } from './StatsConfigMenu';
+import { Player, PlayerGamesData, GameStats } from '../types';
+import StatsConfigMenu, { useStatsConfig } from './StatsConfigMenu';
 import LiveGameSection from './LiveGameSection';
 import { API_BASE_URL } from '../lib/config';
 
@@ -72,15 +72,15 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
   }
 
   // Calculate trends by comparing first half vs second half of games
-  const calculateTrend = (games: any[], stat: string) => {
+  const calculateTrend = (games: GameStats[], stat: string) => {
     if (games.length < 4) return { trend: 0, direction: 'stable' };
     
     const midpoint = Math.floor(games.length / 2);
     const recentGames = games.slice(0, midpoint);
     const olderGames = games.slice(midpoint);
     
-    const recentAvg = recentGames.reduce((sum, g) => sum + (g[stat] || 0), 0) / recentGames.length;
-    const olderAvg = olderGames.reduce((sum, g) => sum + (g[stat] || 0), 0) / olderGames.length;
+    const recentAvg = recentGames.reduce((sum, g) => sum + (Number((g as unknown as Record<string, number>)[stat]) || 0), 0) / recentGames.length;
+    const olderAvg = olderGames.reduce((sum, g) => sum + (Number((g as unknown as Record<string, number>)[stat]) || 0), 0) / olderGames.length;
     
     const change = ((recentAvg - olderAvg) / olderAvg) * 100;
     
@@ -95,16 +95,20 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
   const plusMinusTrend = calculateTrend(data.games, 'PLUS_MINUS');
   const fgPctTrend = calculateTrend(data.games, 'FG_PCT');
   const fg3PctTrend = calculateTrend(data.games, 'FG3_PCT');
+  const reboundsTrend = calculateTrend(data.games, 'REB');
+  const assistsTrend = calculateTrend(data.games, 'AST');
+  const minutesTrend = calculateTrend(data.games.map(g => ({ ...g, MIN_NUM: parseFloat(g.MIN) || 0 })), 'MIN_NUM');
+  const stealsTrend = calculateTrend(data.games, 'STL');
 
   // Calculate standard deviation
-  const calculateStdDev = (games: any[], stat: string) => {
-    const values = games.map(g => g[stat]);
+  const calculateStdDev = (games: GameStats[], stat: string) => {
+    const values = games.map(g => Number((g as unknown as Record<string, number>)[stat]) || 0);
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
     const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
     return Math.sqrt(variance);
   };
 
-  const chartData = data.games.slice().reverse().map((game, idx) => {
+  const chartData = data.games.slice().reverse().map((game) => {
     // Extract opponent from MATCHUP (e.g., "GSW vs. LAL" -> "vs LAL" or "GSW @ LAL" -> "@ LAL")
     let opponent = '';
     if (game.MATCHUP.includes('vs.')) {
@@ -299,6 +303,26 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
             label="3-Point %" 
             trendData={fg3PctTrend}
             isPercentage={true}
+          />
+          <TrendCard 
+            label="Rebounds" 
+            trendData={reboundsTrend}
+            unit=" reb"
+          />
+          <TrendCard 
+            label="Assists" 
+            trendData={assistsTrend}
+            unit=" ast"
+          />
+          <TrendCard 
+            label="Minutes" 
+            trendData={minutesTrend}
+            unit=" min"
+          />
+          <TrendCard 
+            label="Steals" 
+            trendData={stealsTrend}
+            unit=" stl"
           />
         </div>
       </div>
