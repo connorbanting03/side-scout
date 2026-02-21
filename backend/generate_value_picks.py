@@ -34,16 +34,35 @@ MIN_AVG_THRESHOLDS = {'PTS': 10.0, 'REB': 3.0, 'AST': 2.0}
 
 
 def load_todays_team_ids():
-    """Load today's schedule and return the set of team IDs playing tonight."""
+    """Load today's schedule and return the set of team IDs playing TODAY (ET)."""
     fpath = os.path.join(CACHE_DIR, 'todays_schedule.json')
     try:
         if not os.path.isfile(fpath):
             return set()
         with open(fpath, 'r') as f:
             payload = json.load(f)
+
+        # Determine today's date in both UTC and ET.
+        # The NBA API stores gameTimeUTC as the UTC midnight of the game day,
+        # while gameEt holds the ET clock time (which can land on the previous
+        # calendar day for early evening ET games whose UTC date is the next day).
+        # Accept a game if EITHER its UTC date OR its ET date matches today.
+        try:
+            from zoneinfo import ZoneInfo
+            et_zone = ZoneInfo('America/New_York')
+        except ImportError:
+            import pytz
+            et_zone = pytz.timezone('America/New_York')
+        today_et_str  = datetime.now(et_zone).strftime('%Y-%m-%d')
+        today_utc_str = datetime.utcnow().strftime('%Y-%m-%d')
+
         games = payload.get('data', [])
         team_ids = set()
         for game in games:
+            utc_date = game.get('gameTimeUTC', '')[:10]
+            et_date  = game.get('gameEt', '')[:10]
+            if utc_date != today_utc_str and et_date != today_et_str:
+                continue  # skip games not on today's schedule
             home = game.get('homeTeam', {})
             away = game.get('awayTeam', {})
             if home.get('teamId'):
@@ -241,11 +260,12 @@ def analyze_player(player_id, data, directory, window=10):
     }
 
 
-def find_best_value_picks(analyses, top_n=12):
+def find_best_value_picks(analyses, top_n=12, is_season=False):
     """
     Best Value = highest value_score.
     Players trending up across multiple stats with low variance.
-    Excludes players where every single stat has 0.0% trend (likely injured/inactive).
+    In windowed mode: excludes players where every stat has 0.0% trend (injured/inactive).
+    In season mode: trend is always 0 by design, so skip that check.
     """
     def has_real_trend(a):
         """True if at least one betting stat has a non-zero trend."""
@@ -259,17 +279,18 @@ def find_best_value_picks(analyses, top_n=12):
         a for a in analyses
         if a['value_score'] > 0
         and a['stats']['PTS']['recent_avg'] >= MIN_AVG_THRESHOLDS['PTS']
-        and has_real_trend(a)
+        and (is_season or has_real_trend(a))
     ]
     qualified.sort(key=lambda x: x['value_score'], reverse=True)
     return qualified[:top_n]
 
 
-def find_most_consistent(analyses, top_n=12):
+def find_most_consistent(analyses, top_n=12, is_season=False):
     """
     Most Consistent = lowest average CV across PTS, REB, AST.
     Must meet minimum average thresholds so we don't get bench warmers.
-    Excludes players where every single stat has 0.0% trend (likely injured/inactive).
+    In windowed mode: excludes players where every stat has 0.0% trend (injured/inactive).
+    In season mode: trend is always 0 by design, so skip that check.
     """
     def has_real_trend(a):
         return any(
@@ -290,7 +311,7 @@ def find_most_consistent(analyses, top_n=12):
             continue
         if ast_avg < MIN_AVG_THRESHOLDS['AST']:
             continue
-        if not has_real_trend(a):
+        if not is_season and not has_real_trend(a):
             continue
 
         # Average CV across PTS, REB, AST, PRA
@@ -412,8 +433,8 @@ def generate_value_picks():
             analyses.append(result)
     analyses = filter_tonight(analyses)
     print(f"  📊 Season: {len(analyses)} players")
-    best_value = find_best_value_picks(analyses, top_n=12)
-    most_consistent = find_most_consistent(analyses, top_n=12)
+    best_value = find_best_value_picks(analyses, top_n=12, is_season=True)
+    most_consistent = find_most_consistent(analyses, top_n=12, is_season=True)
     windows_output['season'] = {
         'best_value': [slim_pick(p, i + 1, 'value') for i, p in enumerate(best_value)],
         'most_consistent': [slim_pick(p, i + 1, 'consistent') for i, p in enumerate(most_consistent)],

@@ -92,12 +92,16 @@ function StatBadge({ stat, detail }: { stat: string; detail: StatDetail }) {
   );
 }
 
-function PickCard({ pick, type, onPlayerClick }: { 
+function PickCard({ pick, type, gameLimit, onPlayerClick }: { 
   pick: ValuePick; 
   type: 'value' | 'consistent';
+  gameLimit: number;
   onPlayerClick?: (playerId: string, playerName: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Dynamic window label: L5, L10, L20, or Season
+  const windowLabel = gameLimit >= 100 ? 'Season' : `L${gameLimit}`;
 
   // Sort top_trending_stats so the card always shows highest trend first
   const topStats = pick.top_trending_stats ?? ['PTS', 'REB', 'AST'];
@@ -178,7 +182,7 @@ function PickCard({ pick, type, onPlayerClick }: {
             <thead>
               <tr className="text-gray-400 font-semibold uppercase tracking-wider">
                 <th className="text-left pb-1.5">Stat</th>
-                <th className="text-right pb-1.5">L10</th>
+                <th className="text-right pb-1.5">{windowLabel}</th>
                 <th className="text-right pb-1.5">Season</th>
                 <th className="text-right pb-1.5">Trend</th>
                 <th className="text-right pb-1.5">Std Dev</th>
@@ -208,7 +212,7 @@ function PickCard({ pick, type, onPlayerClick }: {
           </table>
           <p className="text-[10px] text-gray-400 mt-2">
             CV (Coefficient of Variation) = Std Dev ÷ Mean — lower = more consistent.
-            L10 = Last 10 games. Trend = L10 vs rest of season.
+            {windowLabel} = Last {gameLimit >= 100 ? 'full season' : `${gameLimit} games`}. Trend = {windowLabel} vs rest of season.
           </p>
         </div>
       )}
@@ -312,6 +316,7 @@ export default function ValuePicks({ onPlayerClick, gameLimit }: ValuePicksProps
             key={pick.player_id}
             pick={pick}
             type={activeSection}
+            gameLimit={gameLimit}
             onPlayerClick={onPlayerClick}
           />
         ))}
@@ -327,6 +332,7 @@ export default function ValuePicks({ onPlayerClick, gameLimit }: ValuePicksProps
                   key={pick.player_id}
                   pick={pick}
                   type={activeSection}
+                  gameLimit={gameLimit}
                   onPlayerClick={onPlayerClick}
                 />
               ))}
