@@ -19,7 +19,7 @@ import os
 import time
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 # NBA API imports
 from nba_api.stats.static import players, teams
@@ -51,7 +51,7 @@ def ensure_cache_dirs():
 def save_json(filepath, data):
     """Save data to JSON file with timestamp metadata."""
     payload = {
-        '_cached_at': datetime.utcnow().isoformat() + 'Z',
+        '_cached_at': datetime.now(tz=timezone.utc).isoformat(),
         '_season': SEASON,
         'data': data
     }

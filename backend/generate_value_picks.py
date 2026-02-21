@@ -19,7 +19,7 @@ Designed to be called from prefetch_cache.py or standalone:
 import json
 import os
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
 
@@ -35,42 +35,68 @@ MIN_AVG_THRESHOLDS = {'PTS': 10.0, 'REB': 3.0, 'AST': 2.0}
 
 def load_todays_team_ids():
     """Load today's schedule and return the set of team IDs with games TODAY (ET).
-    Filters by both today's ET calendar date AND game status (skips Final).
-    This prevents yesterday's completed games from leaking in on off days."""
-    fpath = os.path.join(CACHE_DIR, 'todays_schedule.json')
+    First tries the cached schedule file, then falls back to the live NBA scoreboard API.
+    Filters by today's ET date AND skips completed (Final) games."""
     try:
-        if not os.path.isfile(fpath):
-            return set()
-        with open(fpath, 'r') as f:
-            payload = json.load(f)
+        from zoneinfo import ZoneInfo
+        _et = ZoneInfo('America/New_York')
+    except ImportError:
+        import pytz
+        _et = pytz.timezone('America/New_York')
+    today_et = datetime.now(_et).strftime('%Y-%m-%d')
 
-        # Determine today's date in ET
-        try:
-            from zoneinfo import ZoneInfo
-            _et = ZoneInfo('America/New_York')
-        except ImportError:
-            import pytz
-            _et = pytz.timezone('America/New_York')
-        today_et = datetime.now(_et).strftime('%Y-%m-%d')
-
-        games = payload.get('data', [])
-        team_ids = set()
+    def extract_team_ids(games):
+        """From a list of game dicts, extract team IDs for today's non-final games."""
+        ids = set()
         for game in games:
-            # Only include games that match today's ET date
             game_date = (game.get('gameEt', '') or game.get('gameTimeUTC', ''))[:10]
             if game_date != today_et:
                 continue
-            # Skip completed games — status 3 = Final
             if game.get('status', 1) == 3:
                 continue
             home = game.get('homeTeam', {})
             away = game.get('awayTeam', {})
             if home.get('teamId'):
-                team_ids.add(int(home['teamId']))
+                ids.add(int(home['teamId']))
             if away.get('teamId'):
-                team_ids.add(int(away['teamId']))
-        return team_ids
+                ids.add(int(away['teamId']))
+        return ids
+
+    # Try 1: Read from the prefetched cache file
+    fpath = os.path.join(CACHE_DIR, 'todays_schedule.json')
+    try:
+        if os.path.isfile(fpath):
+            with open(fpath, 'r') as f:
+                payload = json.load(f)
+            games = payload.get('data', [])
+            ids = extract_team_ids(games)
+            if ids:
+                return ids
     except Exception:
+        pass
+
+    # Try 2: Call the live NBA scoreboard API directly
+    try:
+        from nba_api.live.nba.endpoints import scoreboard as live_scoreboard
+        sb = live_scoreboard.ScoreBoard()
+        sb_dict = sb.get_dict()
+        live_games = sb_dict.get('scoreboard', {}).get('games', [])
+        # Build slim game dicts matching our schema
+        games = []
+        for g in live_games:
+            games.append({
+                'gameEt': g.get('gameEt', ''),
+                'gameTimeUTC': g.get('gameTimeUTC', ''),
+                'status': g.get('gameStatus', 1),
+                'homeTeam': {'teamId': g['homeTeam']['teamId']},
+                'awayTeam': {'teamId': g['awayTeam']['teamId']},
+            })
+        ids = extract_team_ids(games)
+        if ids:
+            print(f"  📡 Got {len(ids)//2} games from live scoreboard")
+        return ids
+    except Exception as e:
+        print(f"  ⚠️  Live scoreboard unavailable: {e}")
         return set()
 
 
@@ -441,7 +467,7 @@ def generate_value_picks():
     }
 
     output = {
-        'generated_at': datetime.utcnow().isoformat() + 'Z',
+        'generated_at': datetime.now(tz=timezone.utc).isoformat(),
         'min_games': MIN_SEASON_GAMES,
         'windows': windows_output,
     }
@@ -449,7 +475,7 @@ def generate_value_picks():
     out_path = os.path.join(CACHE_DIR, 'value_picks.json')
     with open(out_path, 'w') as f:
         json.dump({
-            '_cached_at': datetime.utcnow().isoformat() + 'Z',
+            '_cached_at': datetime.now(tz=timezone.utc).isoformat(),
             'data': output
         }, f, default=str)
 

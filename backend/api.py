@@ -7,7 +7,7 @@ import pandas as pd
 import time
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps, lru_cache
 import requests
 from requests.exceptions import Timeout, ReadTimeout, ConnectionError
@@ -83,7 +83,7 @@ def save_cache(filepath, data):
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         payload = {
-            '_cached_at': datetime.utcnow().isoformat() + 'Z',
+            '_cached_at': datetime.now(tz=timezone.utc).isoformat(),
             'data': data
         }
         with open(filepath, 'w') as f:
@@ -187,15 +187,19 @@ def get_scoreboard_cached():
 
 def load_todays_schedule_cache():
     """Load today's schedule from the prefetched cache file.
-    Returns the list of games for TODAY only, or None if missing.
-    Filters by today's ET date so stale completed games never leak through."""
+    Returns the list of games for TODAY only, or None if missing/empty.
+    Filters by today's ET date so stale completed games never leak through.
+    Returns None (not []) when there are no today-matching games so the
+    caller falls through to the live scoreboard API."""
     filepath = os.path.join(CACHE_DIR, 'todays_schedule.json')
     games = load_cache(filepath, max_age_hours=18)  # Schedule valid for 18h
     if games is None:
         return None
     # Double-check each game belongs to today's ET calendar day
     today = _get_today_et_str()
-    return [g for g in games if (g.get('gameEt', '') or g.get('gameTimeUTC', ''))[:10] == today]
+    todays_games = [g for g in games if (g.get('gameEt', '') or g.get('gameTimeUTC', ''))[:10] == today]
+    # Return None (not empty list) so callers fall through to the live API
+    return todays_games if todays_games else None
 
 # Configure NBA API timeout (monkey patch)
 try:
