@@ -25,7 +25,7 @@ CACHE_MAX_AGE_HOURS = 24
 # Set CACHE_ONLY=true to serve exclusively from prefetched cache files.
 # No NBA API calls will be made — useful when the API is down or rate-limited.
 # =====================================================
-CACHE_ONLY_MODE = os.environ.get('CACHE_ONLY', 'true').lower() == 'true'
+CACHE_ONLY_MODE = os.environ.get('CACHE_ONLY', 'false').lower() == 'true'
 if CACHE_ONLY_MODE:
     print("⚠️  CACHE-ONLY MODE ENABLED — no live NBA API calls will be made")
 
