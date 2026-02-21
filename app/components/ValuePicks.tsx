@@ -24,6 +24,7 @@ interface ValuePick {
   value_score: number;
   consistency_score: number;
   best_trending_stat: string | null;
+  top_trending_stats: string[];
   stats: {
     PTS: StatDetail;
     REB: StatDetail;
@@ -35,16 +36,20 @@ interface ValuePick {
   };
 }
 
-interface ValuePicksData {
-  generated_at: string;
-  window: number;
-  min_games: number;
+interface WindowData {
   best_value: ValuePick[];
   most_consistent: ValuePick[];
 }
 
+interface ValuePicksData {
+  generated_at: string;
+  min_games: number;
+  windows: Record<string, WindowData>;
+}
+
 interface ValuePicksProps {
   onPlayerClick?: (playerId: string, playerName: string) => void;
+  gameLimit: number;
 }
 
 const STAT_LABELS: Record<string, string> = {
@@ -94,23 +99,23 @@ function PickCard({ pick, type, onPlayerClick }: {
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const mainStats = ['PTS', 'REB', 'AST'] as const;
-  const bestStat = pick.best_trending_stat;
+  // Sort top_trending_stats so the card always shows highest trend first
+  const topStats = pick.top_trending_stats ?? ['PTS', 'REB', 'AST'];
 
   return (
-    <div 
+    <div
       className="bg-white rounded-xl border-2 border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
     >
       {/* Card Header */}
       <div className="p-3 md:p-4">
         <div className="flex items-start justify-between mb-2">
-          <div 
+          <div
             className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => onPlayerClick?.(pick.player_id, pick.name)}
           >
             <span className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-black text-white ${
-              type === 'value' 
-                ? 'bg-gradient-to-br from-orange-500 to-red-500' 
+              type === 'value'
+                ? 'bg-gradient-to-br from-orange-500 to-red-500'
                 : 'bg-gradient-to-br from-blue-500 to-indigo-500'
             }`}>
               {pick.rank}
@@ -122,10 +127,10 @@ function PickCard({ pick, type, onPlayerClick }: {
               <span className="text-xs font-semibold text-gray-400">{pick.team}</span>
             </div>
           </div>
-          {type === 'value' && bestStat && (
+          {type === 'value' && pick.best_trending_stat && (
             <div className="flex-shrink-0 ml-2 px-2 py-0.5 bg-orange-50 border border-orange-200 rounded-lg">
               <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">
-                {STAT_LABELS[bestStat]} ↑
+                {STAT_LABELS[pick.best_trending_stat]} ↑
               </span>
             </div>
           )}
@@ -138,14 +143,13 @@ function PickCard({ pick, type, onPlayerClick }: {
           )}
         </div>
 
-        {/* Key stat badges */}
+        {/* Top trending stat badges — dynamic, sorted by trend */}
         <div className="flex flex-wrap gap-1.5 mb-2">
-          {mainStats.map(stat => (
-            <StatBadge key={stat} stat={stat} detail={pick.stats[stat]} />
+          {topStats.map(stat => (
+            pick.stats[stat as keyof typeof pick.stats] && (
+              <StatBadge key={stat} stat={stat} detail={pick.stats[stat as keyof typeof pick.stats]} />
+            )
           ))}
-          {pick.stats.FG3M.recent_avg > 1 && (
-            <StatBadge stat="FG3M" detail={pick.stats.FG3M} />
-          )}
         </div>
 
         {/* PRA combo line */}
@@ -212,7 +216,7 @@ function PickCard({ pick, type, onPlayerClick }: {
   );
 }
 
-export default function ValuePicks({ onPlayerClick }: ValuePicksProps) {
+export default function ValuePicks({ onPlayerClick, gameLimit }: ValuePicksProps) {
   const [data, setData] = useState<ValuePicksData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -252,7 +256,9 @@ export default function ValuePicks({ onPlayerClick }: ValuePicksProps) {
     return null; // Silently hide if no data available
   }
 
-  const picks = activeSection === 'value' ? data.best_value : data.most_consistent;
+  const windowKey = gameLimit >= 100 ? 'season' : String(gameLimit);
+  const windowData = data.windows[windowKey] ?? data.windows['10'] ?? { best_value: [], most_consistent: [] };
+  const picks = activeSection === 'value' ? windowData.best_value : windowData.most_consistent;
 
   return (
     <div className="w-full">
@@ -283,15 +289,19 @@ export default function ValuePicks({ onPlayerClick }: ValuePicksProps) {
           </button>
         </div>
         <p className="text-xs text-gray-400 font-medium">
-          Based on last {data.window} games vs season avg • Min {data.min_games} GP
+          {gameLimit >= 100 ? 'Full season performance' : `Last ${gameLimit} games vs season avg`} • Min {data.min_games} GP
         </p>
       </div>
 
       {/* Description */}
       <p className="text-xs text-gray-500 mb-3 text-center">
-        {activeSection === 'value' 
-          ? '🔥 Players trending above their season average with low variance — hot AND reliable bets.'
-          : '🎯 Lowest coefficient of variation across PTS, REB, AST — the most predictable player props.'}
+        {activeSection === 'value'
+          ? gameLimit >= 100
+            ? "🔥 Season's best volume performers weighted by consistency — the most bankable full-season bets."
+            : `🔥 Players trending up over the last ${gameLimit} games with low variance — hot AND reliable.`
+          : gameLimit >= 100
+            ? '🎯 Lowest CV over the full season — the most reliably consistent player props.'
+            : `🎯 Lowest CV over the last ${gameLimit} games across PTS, REB, AST — most predictable props.`}
       </p>
 
       {/* Cards — independent columns on desktop so expanding one card doesn't push others */}

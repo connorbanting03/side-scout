@@ -25,8 +25,8 @@ CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
 
 # Minimum games to qualify
 MIN_SEASON_GAMES = 20
-# How many recent games to evaluate
-RECENT_WINDOW = 10
+# Game windows to precompute (mirrors the "Last X games" selector in the UI)
+WINDOWS = [5, 10, 15, 20]
 # Key betting stat categories
 BETTING_STATS = ['PTS', 'REB', 'AST', 'FG3M', 'STL', 'BLK']
 # Minimum averages to qualify for consistency ranking (filter out low-usage players)
@@ -109,21 +109,26 @@ def coefficient_of_variation(values):
     return std_dev(values) / abs(mean)
 
 
-def analyze_player(player_id, data, directory):
+def analyze_player(player_id, data, directory, window=10):
     """
     Analyze a single player's game log for value + consistency.
+    window=N  -> recent N games vs rest of season (trend-based scoring)
+    window=0  -> season mode: all games, volume x consistency scoring
     Returns a dict with scoring info or None if player doesn't qualify.
     """
     games = data.get('games', [])
     if len(games) < MIN_SEASON_GAMES:
         return None
 
-    # Recent games (already sorted most-recent-first from the API)
-    recent = games[:RECENT_WINDOW]
-    baseline_games = games[RECENT_WINDOW:]  # Everything outside the window
-
-    if len(recent) < RECENT_WINDOW or len(baseline_games) < 5:
-        return None
+    season_mode = (window == 0 or window >= len(games))
+    if season_mode:
+        recent = games
+        baseline_games = []
+    else:
+        recent = games[:window]
+        baseline_games = games[window:]
+        if len(recent) < window or len(baseline_games) < 5:
+            return None
 
     player_info = directory.get(str(player_id), {})
     name = player_info.get('full_name', f'Player {player_id}')
@@ -139,18 +144,22 @@ def analyze_player(player_id, data, directory):
     for stat in BETTING_STATS:
         recent_vals = [g.get(stat, 0) or 0 for g in recent]
         baseline_vals = [g.get(stat, 0) or 0 for g in baseline_games]
+        season_vals = [g.get(stat, 0) or 0 for g in games]
 
         recent_avg = sum(recent_vals) / len(recent_vals) if recent_vals else 0
         baseline_avg = sum(baseline_vals) / len(baseline_vals) if baseline_vals else 0
-        season_vals = [g.get(stat, 0) or 0 for g in games]
         season_avg = sum(season_vals) / len(season_vals) if season_vals else 0
 
         recent_std = std_dev(recent_vals)
         cv = coefficient_of_variation(recent_vals)
 
-        # Trend: how much recent exceeds baseline (as absolute diff and pct)
-        trend_diff = recent_avg - baseline_avg
-        trend_pct = (trend_diff / baseline_avg * 100) if baseline_avg > 0.5 else 0
+        # Trend vs baseline (zero in season mode — no baseline to compare against)
+        if season_mode:
+            trend_diff = 0.0
+            trend_pct = 0.0
+        else:
+            trend_diff = recent_avg - baseline_avg
+            trend_pct = (trend_diff / baseline_avg * 100) if baseline_avg > 0.5 else 0.0
 
         stat_analysis[stat] = {
             'recent_avg': round(recent_avg, 1),
@@ -162,16 +171,19 @@ def analyze_player(player_id, data, directory):
             'cv': round(cv, 3) if cv != float('inf') else 99.0,
         }
 
-        # Value score for this stat:
-        # Positive trend weighted by consistency (low CV = higher multiplier)
-        if trend_diff > 0 and cv < 2.0 and recent_avg > 1.0:
-            # consistency_multiplier: 1/cv capped, so low CV = big boost
+        # Value score: trend x consistency for windowed; volume x consistency for season
+        if cv < 2.0 and recent_avg > 1.0:
             consistency_mult = min(1.0 / max(cv, 0.1), 5.0)
-            stat_value = trend_diff * consistency_mult
-            total_value_score += stat_value
-            qualifying_stats += 1
+            if season_mode:
+                # Season: reward high volume + consistency (no trend available)
+                total_value_score += recent_avg * consistency_mult
+                qualifying_stats += 1
+            elif trend_diff > 0:
+                # Windowed: reward trending up x consistency
+                total_value_score += trend_diff * consistency_mult
+                qualifying_stats += 1
 
-        # Consistency score (lower CV = better)
+        # Accumulate CV for consistency ranking
         if recent_avg > 1.0:
             total_consistency_score += cv
 
@@ -194,12 +206,25 @@ def analyze_player(player_id, data, directory):
     pra_std = std_dev(recent_pra)
     pra_cv = coefficient_of_variation(recent_pra)
 
+    if season_mode:
+        pra_baseline_avg = pra_season_avg
+        pra_trend_diff = 0.0
+        pra_trend_pct = 0.0
+    else:
+        baseline_pra = [
+            (g.get('PTS', 0) or 0) + (g.get('REB', 0) or 0) + (g.get('AST', 0) or 0)
+            for g in baseline_games
+        ]
+        pra_baseline_avg = sum(baseline_pra) / len(baseline_pra) if baseline_pra else 0
+        pra_trend_diff = pra_recent_avg - pra_baseline_avg
+        pra_trend_pct = (pra_trend_diff / pra_baseline_avg * 100) if pra_baseline_avg > 0.5 else 0.0
+
     stat_analysis['PRA'] = {
         'recent_avg': round(pra_recent_avg, 1),
         'season_avg': round(pra_season_avg, 1),
-        'baseline_avg': round(sum(season_pra[RECENT_WINDOW:]) / max(len(season_pra[RECENT_WINDOW:]), 1), 1),
-        'trend_diff': round(pra_recent_avg - pra_season_avg, 1),
-        'trend_pct': round((pra_recent_avg - pra_season_avg) / max(pra_season_avg, 1) * 100, 1),
+        'baseline_avg': round(pra_baseline_avg, 1),
+        'trend_diff': round(pra_trend_diff, 1),
+        'trend_pct': round(pra_trend_pct, 1),
         'recent_std': round(pra_std, 2),
         'cv': round(pra_cv, 3) if pra_cv != float('inf') else 99.0,
     }
@@ -216,26 +241,43 @@ def analyze_player(player_id, data, directory):
     }
 
 
-def find_best_value_picks(analyses, top_n=5):
+def find_best_value_picks(analyses, top_n=12):
     """
     Best Value = highest value_score.
     Players trending up across multiple stats with low variance.
+    Excludes players where every single stat has 0.0% trend (likely injured/inactive).
     """
-    # Filter: must have meaningful minutes & points
+    def has_real_trend(a):
+        """True if at least one betting stat has a non-zero trend."""
+        return any(
+            a['stats'][s]['trend_pct'] != 0.0 or a['stats'][s]['trend_diff'] != 0.0
+            for s in BETTING_STATS
+            if s in a['stats']
+        )
+
     qualified = [
         a for a in analyses
         if a['value_score'] > 0
         and a['stats']['PTS']['recent_avg'] >= MIN_AVG_THRESHOLDS['PTS']
+        and has_real_trend(a)
     ]
     qualified.sort(key=lambda x: x['value_score'], reverse=True)
     return qualified[:top_n]
 
 
-def find_most_consistent(analyses, top_n=5):
+def find_most_consistent(analyses, top_n=12):
     """
     Most Consistent = lowest average CV across PTS, REB, AST.
     Must meet minimum average thresholds so we don't get bench warmers.
+    Excludes players where every single stat has 0.0% trend (likely injured/inactive).
     """
+    def has_real_trend(a):
+        return any(
+            a['stats'][s]['trend_pct'] != 0.0 or a['stats'][s]['trend_diff'] != 0.0
+            for s in BETTING_STATS
+            if s in a['stats']
+        )
+
     qualified = []
     for a in analyses:
         pts_avg = a['stats']['PTS']['recent_avg']
@@ -247,6 +289,8 @@ def find_most_consistent(analyses, top_n=5):
         if reb_avg < MIN_AVG_THRESHOLDS['REB']:
             continue
         if ast_avg < MIN_AVG_THRESHOLDS['AST']:
+            continue
+        if not has_real_trend(a):
             continue
 
         # Average CV across PTS, REB, AST, PRA
@@ -269,7 +313,9 @@ def find_most_consistent(analyses, top_n=5):
 
 
 def generate_value_picks():
-    """Main entry: crunch all player data, produce value_picks.json."""
+    """Main entry: crunch all player data, produce value_picks.json.
+    Computes picks for each game window (5, 10, 15, 20) and full season,
+    all filtered to players on tonight's schedule."""
     print("\n💎 Generating value picks & consistency rankings...")
 
     all_data = load_all_player_games()
@@ -277,34 +323,25 @@ def generate_value_picks():
 
     print(f"  📂 Loaded {len(all_data)} player game logs")
 
-    analyses = []
-    for player_id, data in all_data.items():
-        result = analyze_player(player_id, data, directory)
-        if result:
-            analyses.append(result)
-
-    print(f"  📊 {len(analyses)} players qualified (≥{MIN_SEASON_GAMES} games)")
-
-    # Filter to only players whose team is playing tonight
+    # Load tonight's team IDs for filtering
     todays_teams = load_todays_team_ids()
     if todays_teams:
-        tonight_analyses = [
+        print(f"  🗓️  Tonight: {len(todays_teams) // 2} games")
+    else:
+        print("  ⚠️  No schedule found — using all players")
+
+    def filter_tonight(analyses):
+        """Keep only players on tonight's teams (or all if no schedule)."""
+        if not todays_teams:
+            return analyses
+        return [
             a for a in analyses
             if a.get('team_id') and int(a['team_id']) in todays_teams
         ]
-        print(f"  🏀 {len(tonight_analyses)} players on tonight's {len(todays_teams)//2} games")
-    else:
-        # No schedule available — fall back to all players
-        tonight_analyses = analyses
-        print("  ⚠️  No schedule found — using all players")
 
-    best_value = find_best_value_picks(tonight_analyses, top_n=10)
-    most_consistent = find_most_consistent(tonight_analyses, top_n=10)
-
-    # Build the output, keeping only the fields the frontend needs
     def slim_pick(pick, rank, category):
         """Trim to essential fields for the frontend."""
-        # Find the single best trending stat for the headline
+        # Best trending stat: highest trend_pct; fallback to highest recent_avg for season mode
         best_stat = None
         best_trend = 0
         for stat in BETTING_STATS:
@@ -312,6 +349,20 @@ def generate_value_picks():
             if s.get('trend_pct', 0) > best_trend and s.get('recent_avg', 0) > 1.0:
                 best_trend = s['trend_pct']
                 best_stat = stat
+        if best_stat is None:  # season mode — no trend, show highest-volume stat
+            best_avg = 0
+            for stat in ['PTS', 'AST', 'REB']:
+                s = pick['stats'].get(stat, {})
+                if s.get('recent_avg', 0) > best_avg:
+                    best_avg = s['recent_avg']
+                    best_stat = stat
+        # Top 4 stats to show on the card face, ranked by trend_pct (or recent_avg in season mode)
+        displayable = [s for s in BETTING_STATS if pick['stats'].get(s, {}).get('recent_avg', 0) > 0.5]
+        if any(pick['stats'].get(s, {}).get('trend_pct', 0) != 0 for s in displayable):
+            displayable.sort(key=lambda s: pick['stats'][s].get('trend_pct', 0), reverse=True)
+        else:  # season mode — sort by volume
+            displayable.sort(key=lambda s: pick['stats'][s].get('recent_avg', 0), reverse=True)
+        top_trending_stats = displayable[:4]
 
         return {
             'rank': rank,
@@ -323,6 +374,7 @@ def generate_value_picks():
             'value_score': pick.get('value_score', 0),
             'consistency_score': pick.get('consistency_score', 0),
             'best_trending_stat': best_stat,
+            'top_trending_stats': top_trending_stats,
             'stats': {
                 'PTS': pick['stats']['PTS'],
                 'REB': pick['stats']['REB'],
@@ -334,12 +386,43 @@ def generate_value_picks():
             }
         }
 
-    output = {
-        'generated_at': datetime.utcnow().isoformat() + 'Z',
-        'window': RECENT_WINDOW,
-        'min_games': MIN_SEASON_GAMES,
+    windows_output = {}
+
+    # Windowed analysis: 5, 10, 15, 20 games
+    for w in WINDOWS:
+        analyses = []
+        for player_id, data in all_data.items():
+            result = analyze_player(player_id, data, directory, window=w)
+            if result:
+                analyses.append(result)
+        analyses = filter_tonight(analyses)
+        print(f"  📊 Window {w}g: {len(analyses)} players")
+        best_value = find_best_value_picks(analyses, top_n=12)
+        most_consistent = find_most_consistent(analyses, top_n=12)
+        windows_output[str(w)] = {
+            'best_value': [slim_pick(p, i + 1, 'value') for i, p in enumerate(best_value)],
+            'most_consistent': [slim_pick(p, i + 1, 'consistent') for i, p in enumerate(most_consistent)],
+        }
+
+    # Season analysis (window=0 means all games)
+    analyses = []
+    for player_id, data in all_data.items():
+        result = analyze_player(player_id, data, directory, window=0)
+        if result:
+            analyses.append(result)
+    analyses = filter_tonight(analyses)
+    print(f"  📊 Season: {len(analyses)} players")
+    best_value = find_best_value_picks(analyses, top_n=12)
+    most_consistent = find_most_consistent(analyses, top_n=12)
+    windows_output['season'] = {
         'best_value': [slim_pick(p, i + 1, 'value') for i, p in enumerate(best_value)],
         'most_consistent': [slim_pick(p, i + 1, 'consistent') for i, p in enumerate(most_consistent)],
+    }
+
+    output = {
+        'generated_at': datetime.utcnow().isoformat() + 'Z',
+        'min_games': MIN_SEASON_GAMES,
+        'windows': windows_output,
     }
 
     out_path = os.path.join(CACHE_DIR, 'value_picks.json')
@@ -350,8 +433,9 @@ def generate_value_picks():
         }, f, default=str)
 
     print(f"  ✅ Saved: {out_path}")
-    print(f"  🔥 Best Value: {', '.join(p['name'] for p in best_value)}")
-    print(f"  🎯 Most Consistent: {', '.join(p['name'] for p in most_consistent)}")
+    w10 = windows_output.get('10', {})
+    print(f"  🔥 Best Value (L10): {', '.join(p['name'] for p in w10.get('best_value', [])[:5])}")
+    print(f"  🎯 Most Consistent (L10): {', '.join(p['name'] for p in w10.get('most_consistent', [])[:5])}")
 
     return output
 

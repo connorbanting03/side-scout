@@ -328,7 +328,7 @@ export default function Home() {
               )
             ) : (
               <div className="w-full">
-                <ValuePicks onPlayerClick={(playerId, playerName) => {
+                <ValuePicks gameLimit={gameLimit} onPlayerClick={(playerId, playerName) => {
                   // Try to resolve from directory, otherwise create a minimal Player
                   const dir = directoryRef.current;
                   let player: Player | undefined;
