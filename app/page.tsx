@@ -6,6 +6,7 @@ import PlayerSearch from './components/PlayerSearch';
 import { loadDirectory, type Directory } from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
+import ValuePicks from './components/ValuePicks';
 import { Player, Team } from './types';
 
 interface PlayerTab {
@@ -73,6 +74,7 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const deepLinkProcessed = useRef(false);
+  const directoryRef = useRef<Directory | null>(null);
 
   // ---- Sync URL ↔ tabs ----
 
@@ -81,6 +83,12 @@ export default function Home() {
     if (deepLinkProcessed.current) return;
     deepLinkProcessed.current = true;
 
+    // Always pre-load the directory so ValuePicks can resolve player IDs
+    const dirPromise = loadDirectory().then(dir => {
+      directoryRef.current = dir;
+      return dir;
+    });
+
     const params = new URLSearchParams(window.location.search);
     const searchParam = params.get('search');
     if (!searchParam) return;
@@ -88,7 +96,7 @@ export default function Home() {
     const terms = searchParam.split(',').map(t => t.trim()).filter(Boolean);
     if (terms.length === 0) return;
 
-    loadDirectory().then(dir => {
+    dirPromise.then(dir => {
       const newTabs: Tab[] = [];
       const seen = new Set<string>();
 
@@ -319,14 +327,23 @@ export default function Home() {
                 />
               )
             ) : (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="max-w-xl w-full mx-4 md:mx-0">
-                  {/* CTA */}
-                  <div className="text-center">
-                    <p className="text-xs md:text-sm text-gray-400 font-medium">
-                      Search a player or team above to get started
-                    </p>
-                  </div>
+              <div className="w-full">
+                <ValuePicks onPlayerClick={(playerId, playerName) => {
+                  // Try to resolve from directory, otherwise create a minimal Player
+                  const dir = directoryRef.current;
+                  let player: Player | undefined;
+                  if (dir) {
+                    player = dir.players.find(p => String(p.id) === playerId);
+                  }
+                  if (!player) {
+                    player = { id: Number(playerId), full_name: playerName };
+                  }
+                  addPlayer(player);
+                }} />
+                <div className="text-center mt-6">
+                  <p className="text-xs text-gray-400 font-medium">
+                    Search a player or team above to explore detailed stats
+                  </p>
                 </div>
               </div>
             )}

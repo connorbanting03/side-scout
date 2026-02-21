@@ -633,6 +633,10 @@ def main():
     prefetch_standings()
     prefetch_scoreboard()
 
+    # Always regenerate value picks (runs on local cached data, no API calls)
+    from generate_value_picks import generate_value_picks
+    generate_value_picks()
+
     if quick_mode:
         pass  # Done — directory + standings only
     elif update_mode:
@@ -640,11 +644,15 @@ def main():
         # then only update players on those teams
         teams_with_new_games = prefetch_team_games_incremental(all_teams)
         prefetch_player_games_incremental(active_players, teams_with_new_games)
+        # Re-generate value picks with updated data
+        generate_value_picks()
     else:
         # Full mode: re-fetch everything
         prefetch_rosters(all_teams)
         prefetch_team_games(all_teams)
         prefetch_player_games(active_players)
+        # Re-generate value picks with updated data
+        generate_value_picks()
 
     elapsed = time.time() - start
     print("\n" + "=" * 60)
