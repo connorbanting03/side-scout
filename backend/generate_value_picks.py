@@ -34,7 +34,9 @@ MIN_AVG_THRESHOLDS = {'PTS': 10.0, 'REB': 3.0, 'AST': 2.0}
 
 
 def load_todays_team_ids():
-    """Load today's schedule and return the set of team IDs playing TODAY (ET)."""
+    """Load today's schedule and return the set of team IDs with games TODAY (ET).
+    Filters by both today's ET calendar date AND game status (skips Final).
+    This prevents yesterday's completed games from leaking in on off days."""
     fpath = os.path.join(CACHE_DIR, 'todays_schedule.json')
     try:
         if not os.path.isfile(fpath):
@@ -42,27 +44,25 @@ def load_todays_team_ids():
         with open(fpath, 'r') as f:
             payload = json.load(f)
 
-        # Determine today's date in both UTC and ET.
-        # The NBA API stores gameTimeUTC as the UTC midnight of the game day,
-        # while gameEt holds the ET clock time (which can land on the previous
-        # calendar day for early evening ET games whose UTC date is the next day).
-        # Accept a game if EITHER its UTC date OR its ET date matches today.
+        # Determine today's date in ET
         try:
             from zoneinfo import ZoneInfo
-            et_zone = ZoneInfo('America/New_York')
+            _et = ZoneInfo('America/New_York')
         except ImportError:
             import pytz
-            et_zone = pytz.timezone('America/New_York')
-        today_et_str  = datetime.now(et_zone).strftime('%Y-%m-%d')
-        today_utc_str = datetime.utcnow().strftime('%Y-%m-%d')
+            _et = pytz.timezone('America/New_York')
+        today_et = datetime.now(_et).strftime('%Y-%m-%d')
 
         games = payload.get('data', [])
         team_ids = set()
         for game in games:
-            utc_date = game.get('gameTimeUTC', '')[:10]
-            et_date  = game.get('gameEt', '')[:10]
-            if utc_date != today_utc_str and et_date != today_et_str:
-                continue  # skip games not on today's schedule
+            # Only include games that match today's ET date
+            game_date = (game.get('gameEt', '') or game.get('gameTimeUTC', ''))[:10]
+            if game_date != today_et:
+                continue
+            # Skip completed games — status 3 = Final
+            if game.get('status', 1) == 3:
+                continue
             home = game.get('homeTeam', {})
             away = game.get('awayTeam', {})
             if home.get('teamId'):

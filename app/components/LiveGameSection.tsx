@@ -41,6 +41,21 @@ function loadSchedule(): Promise<ScheduleGame[]> {
   return schedulePromise;
 }
 
+/** Check if a game belongs to today's calendar date (ET, approximated by local clock).
+ *  The gameEt field is in the format "YYYY-MM-DDTHH:MM:SSZ" in Eastern time. */
+function isGameToday(game: ScheduleGame): boolean {
+  const gameEt = game.gameEt || game.gameTimeUTC || '';
+  if (!gameEt) return true; // no date info — assume today to be safe
+  const gameDate = gameEt.slice(0, 10); // "YYYY-MM-DD"
+  // Get today in ET: UTC-5 (EST) or UTC-4 (EDT). Use a rough -5h offset;
+  // the important thing is we don't show games from clearly different dates.
+  const now = new Date();
+  const etOffset = -5; // close enough for calendar-day comparison
+  const etNow = new Date(now.getTime() + (now.getTimezoneOffset() + etOffset * 60) * 60000);
+  const todayStr = etNow.toISOString().slice(0, 10);
+  return gameDate === todayStr;
+}
+
 /** Check whether a game's start time has passed (using gameTimeUTC). */
 function hasGameStarted(game: ScheduleGame): boolean {
   if (game.status >= 2) return true; // Already live or final
@@ -95,14 +110,17 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
     loadSchedule().then(games => {
       if (cancelled) return;
 
+      // Filter to only games actually on today's calendar date
+      const todaysGames = games.filter(isGameToday);
+
       let found: ScheduleGame | null = null;
 
       if (entityType === 'team') {
-        found = games.find(g =>
+        found = todaysGames.find(g =>
           g.homeTeam.teamId === entityId || g.awayTeam.teamId === entityId
         ) || null;
       } else if (resolvedTeamId) {
-        found = games.find(g =>
+        found = todaysGames.find(g =>
           g.homeTeam.teamId === resolvedTeamId || g.awayTeam.teamId === resolvedTeamId
         ) || null;
       }

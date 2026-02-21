@@ -577,8 +577,23 @@ def prefetch_scoreboard():
         sb = live_scoreboard.ScoreBoard()
         sb_dict = sb.get_dict()
 
+        # Only keep games that are actually scheduled for TODAY in ET.
+        # The NBA live scoreboard sometimes returns the previous day's completed
+        # games when there are no games yet on the current calendar day (e.g. off days).
+        try:
+            from zoneinfo import ZoneInfo
+            _et = ZoneInfo('America/New_York')
+        except ImportError:
+            import pytz
+            _et = pytz.timezone('America/New_York')
+        from datetime import datetime as _dt
+        today_et = _dt.now(_et).strftime('%Y-%m-%d')
+
         games_today = []
         for game in sb_dict.get('scoreboard', {}).get('games', []):
+            game_et_date = game.get('gameEt', '')[:10]
+            if game_et_date != today_et:
+                continue  # skip games from a different calendar day
             games_today.append({
                 'gameId': game['gameId'],
                 'status': game.get('gameStatus', 1),

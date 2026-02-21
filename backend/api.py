@@ -137,6 +137,27 @@ def get_player_team_id_from_cache(player_id):
     return None
 
 
+# =====================================================
+# DATE HELPERS — central "today in ET" logic
+# =====================================================
+def _get_today_et_str():
+    """Return today's date string (YYYY-MM-DD) in US Eastern time."""
+    try:
+        from zoneinfo import ZoneInfo
+        _et = ZoneInfo('America/New_York')
+    except ImportError:
+        import pytz
+        _et = pytz.timezone('America/New_York')
+    return datetime.now(_et).strftime('%Y-%m-%d')
+
+
+def _is_game_today(game):
+    """Return True if a scoreboard game dict belongs to today (ET calendar day)."""
+    today = _get_today_et_str()
+    game_et = game.get('gameEt', '') or game.get('gameTimeUTC', '')
+    return game_et[:10] == today
+
+
 # In-memory scoreboard cache (refreshed at most once per 60 seconds)
 _scoreboard_cache = {'data': None, 'fetched_at': 0}
 SCOREBOARD_CACHE_TTL = 60  # seconds
@@ -152,16 +173,29 @@ def get_scoreboard_cached():
         # Never call the live API — return stale in-memory data or None
         return _scoreboard_cache['data']
     sb = scoreboard.ScoreBoard()
-    _scoreboard_cache['data'] = sb.get_dict()
+    sb_dict = sb.get_dict()
+    # Filter out games that aren't on today's ET calendar day.
+    # The NBA scoreboard sometimes returns yesterday's finals on off days.
+    if sb_dict and 'scoreboard' in sb_dict and 'games' in sb_dict['scoreboard']:
+        sb_dict['scoreboard']['games'] = [
+            g for g in sb_dict['scoreboard']['games'] if _is_game_today(g)
+        ]
+    _scoreboard_cache['data'] = sb_dict
     _scoreboard_cache['fetched_at'] = now
     return _scoreboard_cache['data']
 
 
 def load_todays_schedule_cache():
     """Load today's schedule from the prefetched cache file.
-    Returns the list of games or None if missing."""
+    Returns the list of games for TODAY only, or None if missing.
+    Filters by today's ET date so stale completed games never leak through."""
     filepath = os.path.join(CACHE_DIR, 'todays_schedule.json')
-    return load_cache(filepath, max_age_hours=18)  # Schedule valid for 18h
+    games = load_cache(filepath, max_age_hours=18)  # Schedule valid for 18h
+    if games is None:
+        return None
+    # Double-check each game belongs to today's ET calendar day
+    today = _get_today_et_str()
+    return [g for g in games if (g.get('gameEt', '') or g.get('gameTimeUTC', ''))[:10] == today]
 
 # Configure NBA API timeout (monkey patch)
 try:
@@ -836,7 +870,7 @@ def get_todays_schedule():
             return jsonify({'games': [], 'cache_only': True})
 
         print('[CACHE MISS] todays_schedule.json - fetching live scoreboard')
-        sb_dict = get_scoreboard_cached()
+        sb_dict = get_scoreboard_cached()  # already filtered to today by get_scoreboard_cached
         games = []
         for game in sb_dict.get('scoreboard', {}).get('games', []):
             games.append({
