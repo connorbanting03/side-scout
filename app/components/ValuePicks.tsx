@@ -139,13 +139,20 @@ function PickCard({ pick, type, gameLimit, onPlayerClick }: {
               <span className="text-xs font-semibold text-gray-400">{pick.team}</span>
             </div>
           </div>
-          {type === 'value' && pick.best_trending_stat && (
-            <div className="flex-shrink-0 ml-2 px-2 py-0.5 bg-orange-50 border border-orange-200 rounded-lg">
-              <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">
-                {STAT_LABELS[pick.best_trending_stat]} ↑
-              </span>
-            </div>
-          )}
+          {type === 'value' && pick.best_trending_stat && (() => {
+            const d = pick.stats[pick.best_trending_stat as keyof typeof pick.stats];
+            return (
+              <div className="flex-shrink-0 ml-2 px-2 py-1 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-orange-500" />
+                <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">
+                  {STAT_SHORT[pick.best_trending_stat]}
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600">
+                  {d ? formatTrend(d.trend_pct) : ''}
+                </span>
+              </div>
+            );
+          })()}
           {type === 'consistent' && (
             <div className="flex-shrink-0 ml-2 px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-lg">
               <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
