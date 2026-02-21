@@ -35,8 +35,9 @@ MIN_AVG_THRESHOLDS = {'PTS': 10.0, 'REB': 3.0, 'AST': 2.0}
 
 def load_todays_team_ids():
     """Load today's schedule and return the set of team IDs with games TODAY (ET).
-    First tries the cached schedule file, then falls back to the live NBA scoreboard API.
-    Filters by today's ET date AND skips completed (Final) games."""
+    First tries the cached schedule file, then falls back to ScoreboardV2
+    (stats.nba.com) which accepts an explicit date and is always pre-populated.
+    Skips completed (Final) games."""
     try:
         from zoneinfo import ZoneInfo
         _et = ZoneInfo('America/New_York')
@@ -50,7 +51,7 @@ def load_todays_team_ids():
         ids = set()
         for game in games:
             game_date = (game.get('gameEt', '') or game.get('gameTimeUTC', ''))[:10]
-            if game_date != today_et:
+            if game_date and game_date != today_et:
                 continue
             if game.get('status', 1) == 3:
                 continue
@@ -75,28 +76,28 @@ def load_todays_team_ids():
     except Exception:
         pass
 
-    # Try 2: Call the live NBA scoreboard API directly
+    # Try 2: ScoreboardV2 (stats.nba.com) — always pre-populated for today
     try:
-        from nba_api.live.nba.endpoints import scoreboard as live_scoreboard
-        sb = live_scoreboard.ScoreBoard()
-        sb_dict = sb.get_dict()
-        live_games = sb_dict.get('scoreboard', {}).get('games', [])
-        # Build slim game dicts matching our schema
-        games = []
-        for g in live_games:
-            games.append({
-                'gameEt': g.get('gameEt', ''),
-                'gameTimeUTC': g.get('gameTimeUTC', ''),
-                'status': g.get('gameStatus', 1),
-                'homeTeam': {'teamId': g['homeTeam']['teamId']},
-                'awayTeam': {'teamId': g['awayTeam']['teamId']},
-            })
-        ids = extract_team_ids(games)
+        from nba_api.stats.endpoints import scoreboardv2
+        import warnings
+        today_fmt = datetime.now(_et).strftime('%m/%d/%Y')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            sb = scoreboardv2.ScoreboardV2(game_date=today_fmt, day_offset=0)
+        dfs = sb.get_data_frames()
+        game_header = dfs[0]
+        ids = set()
+        for _, row in game_header.iterrows():
+            status = int(row.get('GAME_STATUS_ID', 1))
+            if status == 3:
+                continue  # skip Final games
+            ids.add(int(row['HOME_TEAM_ID']))
+            ids.add(int(row['VISITOR_TEAM_ID']))
         if ids:
-            print(f"  📡 Got {len(ids)//2} games from live scoreboard")
+            print(f"  📡 Got {len(ids)//2} games from ScoreboardV2")
         return ids
     except Exception as e:
-        print(f"  ⚠️  Live scoreboard unavailable: {e}")
+        print(f"  ⚠️  ScoreboardV2 unavailable: {e}")
         return set()
 
 

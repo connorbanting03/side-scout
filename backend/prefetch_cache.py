@@ -566,60 +566,72 @@ def prefetch_player_games_incremental(active_players, teams_with_new_games):
 def prefetch_scoreboard():
     """
     Cache 6: Today's game schedule.
-    Fetches the NBA scoreboard and extracts a slim schedule with team IDs,
-    game start times, and status.  The frontend uses this to know instantly
-    whether a player/team has a game today without hitting the live API.
+    Uses ScoreboardV2 (stats.nba.com) with an explicit date parameter.
+    Unlike the live scoreboard CDN, ScoreboardV2 is pre-populated for the
+    current day regardless of what time the script runs.
     One NBA API call.
     """
-    print("\n📺 Caching today's schedule (scoreboard)...")
+    print("\n📺 Caching today's schedule (ScoreboardV2)...")
     try:
-        from nba_api.live.nba.endpoints import scoreboard as live_scoreboard
-        sb = live_scoreboard.ScoreBoard()
-        sb_dict = sb.get_dict()
-
-        # Only keep games that are actually scheduled for TODAY in ET.
-        # The NBA live scoreboard sometimes returns the previous day's completed
-        # games when there are no games yet on the current calendar day (e.g. off days).
+        from nba_api.stats.endpoints import scoreboardv2
         try:
             from zoneinfo import ZoneInfo
             _et = ZoneInfo('America/New_York')
         except ImportError:
             import pytz
             _et = pytz.timezone('America/New_York')
-        from datetime import datetime as _dt
-        today_et = _dt.now(_et).strftime('%Y-%m-%d')
+        today_et = datetime.now(_et)
+        today_str = today_et.strftime('%Y-%m-%d')
+        today_fmt = today_et.strftime('%m/%d/%Y')  # ScoreboardV2 expects MM/DD/YYYY
+
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            sb = scoreboardv2.ScoreboardV2(game_date=today_fmt, day_offset=0)
+        dfs = sb.get_data_frames()
+        game_header = dfs[0]  # GameHeader dataframe
+        line_score = dfs[1]   # LineScore dataframe (has team names/records)
 
         games_today = []
-        for game in sb_dict.get('scoreboard', {}).get('games', []):
-            game_et_date = game.get('gameEt', '')[:10]
-            if game_et_date != today_et:
-                continue  # skip games from a different calendar day
+        for _, row in game_header.iterrows():
+            game_id = row['GAME_ID']
+            status = int(row.get('GAME_STATUS_ID', 1))
+            status_text = row.get('GAME_STATUS_TEXT', '')
+            home_id = int(row['HOME_TEAM_ID'])
+            away_id = int(row['VISITOR_TEAM_ID'])
+
+            # Pull team details from LineScore
+            home_row = line_score[line_score['TEAM_ID'] == home_id]
+            away_row = line_score[line_score['TEAM_ID'] == away_id]
+
+            def team_info(team_row, team_id):
+                if team_row.empty:
+                    return {'teamId': team_id, 'tricode': '', 'teamName': '', 'wins': 0, 'losses': 0}
+                r = team_row.iloc[0]
+                wl = str(r.get('TEAM_WINS_LOSSES', '0-0')).split('-')
+                return {
+                    'teamId': team_id,
+                    'tricode': r.get('TEAM_ABBREVIATION', ''),
+                    'teamName': r.get('TEAM_NAME', ''),
+                    'wins': int(wl[0]) if len(wl) == 2 else 0,
+                    'losses': int(wl[1]) if len(wl) == 2 else 0,
+                }
+
             games_today.append({
-                'gameId': game['gameId'],
-                'status': game.get('gameStatus', 1),
-                'statusText': game.get('gameStatusText', ''),
-                'gameTimeUTC': game.get('gameTimeUTC', ''),
-                'gameEt': game.get('gameEt', ''),
-                'homeTeam': {
-                    'teamId': game['homeTeam']['teamId'],
-                    'tricode': game['homeTeam'].get('teamTricode', ''),
-                    'teamName': game['homeTeam'].get('teamName', ''),
-                    'wins': game['homeTeam'].get('wins', 0),
-                    'losses': game['homeTeam'].get('losses', 0),
-                },
-                'awayTeam': {
-                    'teamId': game['awayTeam']['teamId'],
-                    'tricode': game['awayTeam'].get('teamTricode', ''),
-                    'teamName': game['awayTeam'].get('teamName', ''),
-                    'wins': game['awayTeam'].get('wins', 0),
-                    'losses': game['awayTeam'].get('losses', 0),
-                },
+                'gameId': game_id,
+                'status': status,
+                'statusText': status_text.strip() if isinstance(status_text, str) else '',
+                'gameTimeUTC': '',  # V2 doesn't provide UTC; ET is in statusText
+                'gameEt': f"{today_str}T{status_text.strip().replace(' ET', '')}" if 'ET' in str(status_text) else today_str,
+                'homeTeam': team_info(home_row, home_id),
+                'awayTeam': team_info(away_row, away_id),
             })
 
         save_json(os.path.join(CACHE_DIR, 'todays_schedule.json'), games_today)
         print(f"  📊 {len(games_today)} games on today's schedule")
     except Exception as e:
         print(f"  ❌ Failed to cache scoreboard: {e}")
+        traceback.print_exc()
 
 
 def main():

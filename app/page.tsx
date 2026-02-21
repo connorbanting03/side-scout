@@ -75,6 +75,7 @@ export default function Home() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const deepLinkProcessed = useRef(false);
   const directoryRef = useRef<Directory | null>(null);
+  const isRestoringFromHistory = useRef(false);
 
   // ---- Sync URL ↔ tabs ----
 
@@ -127,16 +128,75 @@ export default function Home() {
 
   // When tabs change: update URL so the link is always shareable
   useEffect(() => {
+    // Skip URL push/replace when this change was triggered by the back button
+    if (isRestoringFromHistory.current) {
+      isRestoringFromHistory.current = false;
+      return;
+    }
     const search = buildSearchParam(tabs);
     const url = new URL(window.location.href);
+    const prevSearch = url.searchParams.get('search') || '';
     if (search) {
       url.searchParams.set('search', search);
     } else {
       url.searchParams.delete('search');
     }
-    // Replace state (don't push) to avoid polluting browser history
-    window.history.replaceState({}, '', url.toString());
+    // Push a new history entry when going from the landing page (no tabs)
+    // to the player/team view so the back button returns to the landing page.
+    if (search && !prevSearch) {
+      window.history.pushState({ search }, '', url.toString());
+    } else {
+      window.history.replaceState({ search }, '', url.toString());
+    }
   }, [tabs]);
+
+  // Handle browser back / forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const searchParam = params.get('search');
+
+      isRestoringFromHistory.current = true;
+
+      if (!searchParam) {
+        // Back to landing page — clear all tabs
+        setTabs([]);
+        setActiveTab(null);
+        return;
+      }
+
+      // Restore tabs from the URL (directory should already be loaded)
+      const dir = directoryRef.current;
+      if (!dir) {
+        setTabs([]);
+        setActiveTab(null);
+        return;
+      }
+
+      const terms = searchParam.split(',').map(t => t.trim()).filter(Boolean);
+      const newTabs: Tab[] = [];
+      const seen = new Set<string>();
+      for (const term of terms) {
+        const match = resolveSearchTerm(term, dir);
+        if (!match) continue;
+        const tabId = match.type === 'player'
+          ? `player-${match.player.id}`
+          : `team-${match.team.id}`;
+        if (seen.has(tabId)) continue;
+        seen.add(tabId);
+        if (match.type === 'player') {
+          newTabs.push({ type: 'player', player: match.player, id: tabId });
+        } else {
+          newTabs.push({ type: 'team', team: match.team, id: tabId });
+        }
+      }
+      setTabs(newTabs);
+      setActiveTab(newTabs.length > 0 ? newTabs[0].id : null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const addPlayer = (player: Player) => {
     const tabId = `player-${player.id}`;

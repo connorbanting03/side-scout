@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, send_from_directory
-from nba_api.stats.endpoints import playercareerstats, commonplayerinfo, playergamelog, teamgamelogs, teamdashboardbygeneralsplits, leaguedashteamstats
+from nba_api.stats.endpoints import playercareerstats, commonplayerinfo, playergamelog, teamgamelogs, teamdashboardbygeneralsplits, leaguedashteamstats, scoreboardv2
 from nba_api.stats.static import players, teams
 from nba_api.live.nba.endpoints import scoreboard
 from flask_cors import CORS
@@ -868,36 +868,61 @@ def get_todays_schedule():
         if cached is not None:
             return jsonify({'games': cached})
 
-        # Cache miss — fall back to live scoreboard and build schedule on the fly
+        # Cache miss — fall back to ScoreboardV2 (stats.nba.com) which
+        # accepts an explicit date and is always pre-populated for today.
         if CACHE_ONLY_MODE:
             print('[CACHE-ONLY] todays_schedule.json missing — returning empty schedule')
             return jsonify({'games': [], 'cache_only': True})
 
-        print('[CACHE MISS] todays_schedule.json - fetching live scoreboard')
-        sb_dict = get_scoreboard_cached()  # already filtered to today by get_scoreboard_cached
+        print('[CACHE MISS] todays_schedule.json - fetching ScoreboardV2')
+        import warnings
+        today_et = datetime.now(timezone.utc).astimezone()
+        try:
+            from zoneinfo import ZoneInfo
+            today_et = datetime.now(ZoneInfo('America/New_York'))
+        except Exception:
+            pass
+        today_str = today_et.strftime('%Y-%m-%d')
+        today_fmt = today_et.strftime('%m/%d/%Y')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            sb = scoreboardv2.ScoreboardV2(game_date=today_fmt, day_offset=0)
+        dfs = sb.get_data_frames()
+        game_header = dfs[0]
+        line_score = dfs[1]
         games = []
-        for game in sb_dict.get('scoreboard', {}).get('games', []):
+        for _, row in game_header.iterrows():
+            game_id = row['GAME_ID']
+            status = int(row.get('GAME_STATUS_ID', 1))
+            status_text = str(row.get('GAME_STATUS_TEXT', '')).strip()
+            home_id = int(row['HOME_TEAM_ID'])
+            away_id = int(row['VISITOR_TEAM_ID'])
+            home_row = line_score[line_score['TEAM_ID'] == home_id]
+            away_row = line_score[line_score['TEAM_ID'] == away_id]
+            def _team(tr, tid):
+                if tr.empty:
+                    return {'teamId': tid, 'tricode': '', 'teamName': '', 'wins': 0, 'losses': 0}
+                r = tr.iloc[0]
+                wl = str(r.get('TEAM_WINS_LOSSES', '0-0')).split('-')
+                return {
+                    'teamId': tid,
+                    'tricode': r.get('TEAM_ABBREVIATION', ''),
+                    'teamName': r.get('TEAM_NAME', ''),
+                    'wins': int(wl[0]) if len(wl) == 2 else 0,
+                    'losses': int(wl[1]) if len(wl) == 2 else 0,
+                }
             games.append({
-                'gameId': game['gameId'],
-                'status': game.get('gameStatus', 1),
-                'statusText': game.get('gameStatusText', ''),
-                'gameTimeUTC': game.get('gameTimeUTC', ''),
-                'gameEt': game.get('gameEt', ''),
-                'homeTeam': {
-                    'teamId': game['homeTeam']['teamId'],
-                    'tricode': game['homeTeam'].get('teamTricode', ''),
-                    'teamName': game['homeTeam'].get('teamName', ''),
-                    'wins': game['homeTeam'].get('wins', 0),
-                    'losses': game['homeTeam'].get('losses', 0),
-                },
-                'awayTeam': {
-                    'teamId': game['awayTeam']['teamId'],
-                    'tricode': game['awayTeam'].get('teamTricode', ''),
-                    'teamName': game['awayTeam'].get('teamName', ''),
-                    'wins': game['awayTeam'].get('wins', 0),
-                    'losses': game['awayTeam'].get('losses', 0),
-                },
+                'gameId': game_id,
+                'status': status,
+                'statusText': status_text,
+                'gameTimeUTC': '',
+                'gameEt': f"{today_str}T{status_text.replace(' ET', '')}" if 'ET' in status_text else today_str,
+                'homeTeam': _team(home_row, home_id),
+                'awayTeam': _team(away_row, away_id),
             })
+        # Cache the result so subsequent requests don't hit the API again
+        if games:
+            save_cache(os.path.join(CACHE_DIR, 'todays_schedule.json'), games)
         return jsonify({'games': games})
     except Exception as e:
         return jsonify({'games': [], 'error': str(e)}), 200
