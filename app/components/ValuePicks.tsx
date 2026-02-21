@@ -312,17 +312,6 @@ export default function ValuePicks({ onPlayerClick, gameLimit }: ValuePicksProps
         </p>
       </div>
 
-      {/* Description */}
-      <p className="text-xs text-gray-500 mb-3 text-center">
-        {activeSection === 'value'
-          ? gameLimit >= 100
-            ? "🔥 Season's best volume performers weighted by consistency — the most bankable full-season bets."
-            : `🔥 Players trending up over the last ${gameLimit} games with low variance — hot AND reliable.`
-          : gameLimit >= 100
-            ? '🎯 Lowest CV over the full season — the most reliably consistent player props.'
-            : `🎯 Lowest CV over the last ${gameLimit} games across PTS, REB, AST — most predictable props.`}
-      </p>
-
       {/* Cards — independent columns on desktop so expanding one card doesn't push others */}
       {/* Mobile: single column stack */}
       <div className="md:hidden flex flex-col gap-3">
