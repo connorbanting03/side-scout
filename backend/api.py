@@ -334,6 +334,46 @@ def get_directory():
         return jsonify({'error': str(e), 'message': 'Failed to load directory'}), 500
 
 
+@app.route('/api/injuries', methods=['GET'])
+def get_injuries():
+    """
+    Returns the cached ESPN injury report as a flat dict:
+      { player_name_lower: { name, status, comment } }
+    Status values: 'Out' | 'Day-To-Day' | 'Suspension'
+    Refreshed nightly by prefetch_injuries().
+    Falls back to live ESPN fetch if cache is missing.
+    """
+    try:
+        filepath = os.path.join(CACHE_DIR, 'injuries.json')
+        data = load_cache(filepath, max_age_hours=6)
+        if data is not None:
+            return jsonify(data)
+
+        # Cache miss — fetch live from ESPN
+        import requests as _req
+        url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries'
+        r = _req.get(url, timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        r.raise_for_status()
+        raw = r.json()
+        injuries = {}
+        for team in raw.get('injuries', []):
+            for inj in team.get('injuries', []):
+                athlete = inj.get('athlete', {})
+                name = athlete.get('displayName', '').strip()
+                if not name:
+                    continue
+                injuries[name.lower()] = {
+                    'name': name,
+                    'status': inj.get('status', '').strip(),
+                    'comment': inj.get('shortComment', '').strip(),
+                }
+        # Cache for next time
+        save_cache(filepath, injuries)
+        return jsonify(injuries)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 200  # soft fail — frontend handles missing data gracefully
+
+
 @app.route('/api/value-picks', methods=['GET'])
 def get_value_picks():
     """

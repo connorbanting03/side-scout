@@ -17,6 +17,7 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
   const [data, setData] = useState<PlayerGamesData | null>(null);
   const [loading, setLoading] = useState(true);  const [configOpen, setConfigOpen] = useState(false);
   const [config, setConfig] = useStatsConfig('playerStatsConfig');  const [error, setError] = useState<string | null>(null);
+  const [injuryStatus, setInjuryStatus] = useState<{ status: string; comment: string } | null>(null);
 
   useEffect(() => {
     const fetchPlayerData = async () => {
@@ -34,8 +35,25 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
       }
     };
 
+    const fetchInjuryStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/injuries`);
+        if (!res.ok) return;
+        const injuries: Record<string, { name: string; status: string; comment: string }> = await res.json();
+        const key = player.full_name.toLowerCase();
+        if (injuries[key]) {
+          setInjuryStatus({ status: injuries[key].status, comment: injuries[key].comment });
+        } else {
+          setInjuryStatus(null);
+        }
+      } catch {
+        // soft fail — injury data is non-critical
+      }
+    };
+
     fetchPlayerData();
-  }, [player.id, gameLimit]);
+    fetchInjuryStatus();
+  }, [player.id, player.full_name, gameLimit]);
 
   if (loading) {
     return (
@@ -214,6 +232,23 @@ export default function PlayerDashboard({ player, gameLimit }: PlayerDashboardPr
         </button>
         <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2 pr-12">
           <h2 className="text-2xl md:text-4xl font-bold drop-shadow-lg">{player.full_name}</h2>
+          {injuryStatus && (() => {
+            const { status, comment } = injuryStatus;
+            const isOut = status === 'Out' || status === 'Suspension';
+            const label = status === 'Day-To-Day' ? 'DTD' : status === 'Suspension' ? 'SUSP' : 'OUT';
+            return (
+              <span
+                title={comment || status}
+                className={`px-2 py-0.5 rounded-lg text-xs font-black uppercase tracking-wider border ${
+                  isOut
+                    ? 'bg-red-500/30 border-red-300 text-white'
+                    : 'bg-amber-400/30 border-amber-300 text-white'
+                }`}
+              >
+                {label}
+              </span>
+            );
+          })()}
           {data.team && (
             <span className="text-lg md:text-2xl font-bold bg-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-lg backdrop-blur">
               {data.team}

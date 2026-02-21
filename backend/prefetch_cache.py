@@ -634,6 +634,45 @@ def prefetch_scoreboard():
         traceback.print_exc()
 
 
+def prefetch_injuries():
+    """
+    Cache 7: ESPN injury report.
+    Fetches the current NBA injury report from ESPN's public API and saves
+    a slim lookup dict { player_name_lower: status } to injuries.json.
+    Status values: 'Out', 'Day-To-Day', 'Suspension'.
+    No auth required, one HTTP call.
+    """
+    print("\n🏥 Caching injury report (ESPN)...")
+    try:
+        import requests as _req
+        url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries'
+        r = _req.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        r.raise_for_status()
+        data = r.json()
+
+        injuries = {}  # { player_name_lower: { status, short_comment } }
+        for team in data.get('injuries', []):
+            for inj in team.get('injuries', []):
+                athlete = inj.get('athlete', {})
+                name = athlete.get('displayName', '').strip()
+                if not name:
+                    continue
+                status = inj.get('status', '').strip()        # 'Out' | 'Day-To-Day' | 'Suspension'
+                comment = inj.get('shortComment', '').strip()
+                injuries[name.lower()] = {
+                    'name': name,
+                    'status': status,
+                    'comment': comment,
+                }
+
+        save_json(os.path.join(CACHE_DIR, 'injuries.json'), injuries)
+        out_count = sum(1 for v in injuries.values() if v['status'] == 'Out')
+        dtd_count = sum(1 for v in injuries.values() if v['status'] == 'Day-To-Day')
+        print(f"  📊 {len(injuries)} players on report: {out_count} Out, {dtd_count} Day-To-Day")
+    except Exception as e:
+        print(f"  ❌ Failed to cache injury report: {e}")
+
+
 def main():
     quick_mode = '--quick' in sys.argv
     update_mode = '--update' in sys.argv
@@ -655,10 +694,11 @@ def main():
     start = time.time()
     ensure_cache_dirs()
 
-    # Always refresh directory + standings + schedule (lightweight: ~2 API calls total)
+    # Always refresh directory + standings + schedule + injuries (lightweight)
     active_players, all_teams = prefetch_directory()
     prefetch_standings()
     prefetch_scoreboard()
+    prefetch_injuries()
 
     # Always regenerate value picks (runs on local cached data, no API calls)
     from generate_value_picks import generate_value_picks

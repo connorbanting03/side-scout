@@ -23,6 +23,7 @@ interface ValuePick {
   category: 'value' | 'consistent';
   value_score: number;
   consistency_score: number;
+  injury_status: string | null;
   best_trending_stat: string | null;
   top_trending_stats: string[];
   stats: {
@@ -125,9 +126,16 @@ function PickCard({ pick, type, gameLimit, onPlayerClick }: {
               {pick.rank}
             </span>
             <div className="min-w-0">
-              <h3 className="font-display text-base md:text-lg font-bold text-gray-900 truncate leading-tight">
-                {pick.name}
-              </h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-display text-base md:text-lg font-bold text-gray-900 truncate leading-tight">
+                  {pick.name}
+                </h3>
+                {pick.injury_status === 'DTD' && (
+                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 text-[9px] font-black rounded uppercase tracking-wider">
+                    DTD
+                  </span>
+                )}
+              </div>
               <span className="text-xs font-semibold text-gray-400">{pick.team}</span>
             </div>
           </div>
