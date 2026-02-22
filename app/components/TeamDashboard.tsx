@@ -239,10 +239,10 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-2xl p-4 md:p-6 text-white shadow-xl relative">
         <button
           onClick={() => setConfigOpen(true)}
-          className="absolute top-3 right-3 md:top-4 md:right-4 p-2 md:p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all shadow-lg backdrop-blur-sm"
+          className="absolute top-2 right-2 md:top-4 md:right-4 p-1.5 md:p-3 bg-white/20 hover:bg-white/30 rounded-lg md:rounded-xl transition-all shadow-lg backdrop-blur-sm"
           title="Configure Stats"
         >
-          <Settings className="w-5 h-5 md:w-6 md:h-6" />
+          <Settings className="w-4 h-4 md:w-6 md:h-6" />
         </button>
         <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2 pr-12">
           <h2 className="text-2xl md:text-4xl font-bold drop-shadow-lg">{team.full_name}</h2>
