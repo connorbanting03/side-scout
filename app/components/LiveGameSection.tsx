@@ -56,18 +56,6 @@ function isGameToday(game: ScheduleGame): boolean {
   return gameDate === todayStr;
 }
 
-/** Check whether a game's start time has passed (using gameTimeUTC). */
-function hasGameStarted(game: ScheduleGame): boolean {
-  if (game.status >= 2) return true; // Already live or final
-  if (!game.gameTimeUTC) return false;
-  try {
-    const startTime = new Date(game.gameTimeUTC).getTime();
-    return Date.now() >= startTime;
-  } catch {
-    return false;
-  }
-}
-
 const formatLiveMinutes = (isoMinutes: string): string => {
   if (!isoMinutes) return '0:00';
   const match = isoMinutes.match(/PT(\d+)M([\d.]+)S/);
@@ -91,7 +79,7 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scheduleGameRef = useRef<ScheduleGame | null>(null);
 
   // Resolve which team ID to look up in the schedule.
   // For team entities, entityId IS the team ID.
@@ -139,35 +127,18 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
         return;
       }
 
+      scheduleGameRef.current = found;
       setScheduleGame(found);
       setScheduleLoading(false);
 
-      // If game has already started or is final, immediately go to live mode
-      if (hasGameStarted(found)) {
-        setLiveActive(true);
-      }
+      // Always start fetching live data when a game is found.
+      // The live endpoint is lightweight for scheduled games (no box score call)
+      // and returns matchup history for pre-game display.
+      setLiveActive(true);
     });
 
     return () => { cancelled = true; };
   }, [entityType, entityId, resolvedTeamId]);
-
-  // ---- PHASE 1b: For scheduled games, poll to detect when start time arrives ----
-  useEffect(() => {
-    if (!scheduleGame || liveActive) return;
-    if (scheduleGame.status >= 2) return; // Already started
-
-    // Check every 60 seconds if game start time has arrived
-    const checkStart = () => {
-      if (hasGameStarted(scheduleGame)) {
-        setLiveActive(true);
-      }
-    };
-
-    startCheckIntervalRef.current = setInterval(checkStart, 60000);
-    return () => {
-      if (startCheckIntervalRef.current) clearInterval(startCheckIntervalRef.current);
-    };
-  }, [scheduleGame, liveActive]);
 
   // ---- PHASE 2: Live data fetching (only when liveActive is true) ----
   const fetchLiveData = useCallback(async () => {
@@ -175,17 +146,19 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
       const response = await fetch(`${API_BASE_URL}/api/live/${entityType}/${entityId}`);
       if (!response.ok) throw new Error('Failed to fetch live data');
       const result: LiveGameData = await response.json();
-      setData(result);
-      setLastUpdated(new Date());
-
-      // If the live endpoint says no game, update our state
-      if (!result.hasGame) {
+      if (result.hasGame) {
+        setData(result);
+        setLastUpdated(new Date());
+      } else if (!scheduleGameRef.current) {
+        // Only mark "no game" if we don't have a confirmed schedule game
         setNoGame(true);
         setLiveActive(false);
       }
+      // If live CDN says no game but schedule says there is one,
+      // keep polling — the live CDN may not have today's games yet
     } catch (err) {
       console.error('Error fetching live data:', err);
-      setData({ live: false });
+      // Don't kill the UI on error — keep schedule card if available
     }
   }, [entityType, entityId]);
 
@@ -240,8 +213,8 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
     return null;
   }
 
-  // ---- PRE-GAME: Show schedule card before live data is available ----
-  if (scheduleGame && !liveActive) {
+  // ---- PRE-GAME: Show schedule card while live data loads ----
+  if (scheduleGame && (!data?.hasGame || !data?.game)) {
     const isHome = entityType === 'team'
       ? scheduleGame.homeTeam.teamId === entityId
       : scheduleGame.homeTeam.teamId === resolvedTeamId;
@@ -260,6 +233,13 @@ export default function LiveGameSection({ entityType, entityId, teamId }: LiveGa
                 </span>
               </div>
             </div>
+            <button
+              onClick={fetchLiveData}
+              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0"
+              title="Check for live updates"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Scoreboard preview */}

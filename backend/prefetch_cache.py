@@ -617,12 +617,32 @@ def prefetch_scoreboard():
                     'losses': int(wl[1]) if len(wl) == 2 else 0,
                 }
 
+            # Parse ET time from statusText (e.g., "7:00 pm ET") and convert to UTC
+            game_time_utc = ''
+            game_et = today_str
+            st = status_text.strip() if isinstance(status_text, str) else ''
+            if 'ET' in str(status_text):
+                game_et = f"{today_str}T{st.replace(' ET', '')}"
+                import re as _re
+                m = _re.match(r'(\d{1,2}):(\d{2})\s*(am|pm)', st, _re.IGNORECASE)
+                if m:
+                    h, mn, ap = int(m.group(1)), int(m.group(2)), m.group(3).lower()
+                    if ap == 'pm' and h != 12:
+                        h += 12
+                    if ap == 'am' and h == 12:
+                        h = 0
+                    # ET is UTC-5 (EST); close enough for game start detection
+                    from datetime import timedelta
+                    et_offset = timezone(timedelta(hours=-5))
+                    game_dt = datetime(today_et.year, today_et.month, today_et.day, h, mn, tzinfo=et_offset)
+                    game_time_utc = game_dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
             games_today.append({
                 'gameId': game_id,
                 'status': status,
-                'statusText': status_text.strip() if isinstance(status_text, str) else '',
-                'gameTimeUTC': '',  # V2 doesn't provide UTC; ET is in statusText
-                'gameEt': f"{today_str}T{status_text.strip().replace(' ET', '')}" if 'ET' in str(status_text) else today_str,
+                'statusText': st,
+                'gameTimeUTC': game_time_utc,
+                'gameEt': game_et,
                 'homeTeam': team_info(home_row, home_id),
                 'awayTeam': team_info(away_row, away_id),
             })

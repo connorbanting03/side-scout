@@ -966,12 +966,26 @@ def get_todays_schedule():
                     'wins': int(wl[0]) if len(wl) == 2 else 0,
                     'losses': int(wl[1]) if len(wl) == 2 else 0,
                 }
+            # Parse ET time from statusText (e.g., "7:00 pm ET") and convert to UTC
+            game_time_utc = ''
+            game_et = f"{today_str}T{status_text.replace(' ET', '')}" if 'ET' in status_text else today_str
+            import re as _re
+            m = _re.match(r'(\d{1,2}):(\d{2})\s*(am|pm)', status_text, _re.IGNORECASE)
+            if m:
+                h, mn, ap = int(m.group(1)), int(m.group(2)), m.group(3).lower()
+                if ap == 'pm' and h != 12:
+                    h += 12
+                if ap == 'am' and h == 12:
+                    h = 0
+                et_offset = timedelta(hours=-5)
+                game_dt = datetime(today_et.year, today_et.month, today_et.day, h, mn, tzinfo=timezone(et_offset))
+                game_time_utc = game_dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
             games.append({
                 'gameId': game_id,
                 'status': status,
                 'statusText': status_text,
-                'gameTimeUTC': '',
-                'gameEt': f"{today_str}T{status_text.replace(' ET', '')}" if 'ET' in status_text else today_str,
+                'gameTimeUTC': game_time_utc,
+                'gameEt': game_et,
                 'homeTeam': _team(home_row, home_id),
                 'awayTeam': _team(away_row, away_id),
             })
@@ -1053,7 +1067,7 @@ def get_player_live_game(player_id):
                         'game': {
                             'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
                             'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
-                            'homeTeam': sg.get('homeTeam', {}), 'awayTeam': sg.get('awayTeam', {}),
+                            'homeTeam': {**sg.get('homeTeam', {}), 'score': 0}, 'awayTeam': {**sg.get('awayTeam', {}), 'score': 0},
                             'isHome': is_home,
                         },
                         'playerStats': None, 'matchupHistory': matchup_history,
@@ -1078,6 +1092,31 @@ def get_player_live_game(player_id):
                 break
 
         if not game_found:
+            # Live scoreboard doesn't have the game yet — fall back to schedule cache
+            cached_schedule = load_todays_schedule_cache()
+            if cached_schedule:
+                for sg in cached_schedule:
+                    home_tid = sg.get('homeTeam', {}).get('teamId')
+                    away_tid = sg.get('awayTeam', {}).get('teamId')
+                    if home_tid == team_id or away_tid == team_id:
+                        is_home = (home_tid == team_id)
+                        opp_tri = sg['awayTeam'].get('tricode', '') if is_home else sg['homeTeam'].get('tricode', '')
+                        mh = []
+                        cached_player = load_player_games_cache(player_id)
+                        if cached_player and cached_player.get('games'):
+                            mh = [g for g in cached_player['games']
+                                  if opp_tri and opp_tri.upper() in (g.get('MATCHUP', '') or '').upper()]
+                        return jsonify({
+                            'live': False, 'hasGame': True,
+                            'game': {
+                                'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
+                                'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
+                                'homeTeam': {**sg.get('homeTeam', {}), 'score': 0},
+                                'awayTeam': {**sg.get('awayTeam', {}), 'score': 0},
+                                'isHome': is_home,
+                            },
+                            'playerStats': None, 'matchupHistory': mh,
+                        })
             return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today'})
 
         # Game status: 1=scheduled, 2=live, 3=final
@@ -1233,7 +1272,7 @@ def get_team_live_game(team_id):
                         'game': {
                             'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
                             'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
-                            'homeTeam': sg.get('homeTeam', {}), 'awayTeam': sg.get('awayTeam', {}),
+                            'homeTeam': {**sg.get('homeTeam', {}), 'score': 0}, 'awayTeam': {**sg.get('awayTeam', {}), 'score': 0},
                             'isHome': is_home,
                         },
                         'teamStats': None, 'matchupHistory': matchup_history,
@@ -1258,6 +1297,34 @@ def get_team_live_game(team_id):
                 break
 
         if not game_found:
+            # Live scoreboard doesn't have the game yet — fall back to schedule cache
+            cached_schedule = load_todays_schedule_cache()
+            if cached_schedule:
+                for sg in cached_schedule:
+                    home_tid = sg.get('homeTeam', {}).get('teamId')
+                    away_tid = sg.get('awayTeam', {}).get('teamId')
+                    if home_tid == team_id_int or away_tid == team_id_int:
+                        is_home = (home_tid == team_id_int)
+                        opp_tri = sg['awayTeam'].get('tricode', '') if is_home else sg['homeTeam'].get('tricode', '')
+                        mh = []
+                        cached_games = load_team_games_cache(team_id)
+                        if cached_games is not None:
+                            opp_games = [g for g in cached_games if opp_tri and opp_tri.upper() in (g.get('MATCHUP', '') or '').upper()]
+                            for g in opp_games:
+                                if g.get('OPP_PTS') is None and g.get('PTS') is not None and g.get('PLUS_MINUS') is not None:
+                                    g['OPP_PTS'] = g['PTS'] - g['PLUS_MINUS']
+                            mh = opp_games
+                        return jsonify({
+                            'live': False, 'hasGame': True,
+                            'game': {
+                                'gameId': sg.get('gameId', ''), 'status': sg.get('status', 1),
+                                'statusText': sg.get('statusText', ''), 'period': 0, 'clock': '',
+                                'homeTeam': {**sg.get('homeTeam', {}), 'score': 0},
+                                'awayTeam': {**sg.get('awayTeam', {}), 'score': 0},
+                                'isHome': is_home,
+                            },
+                            'teamStats': None, 'matchupHistory': mh,
+                        })
             return jsonify({'live': False, 'hasGame': False, 'message': 'No game scheduled today'})
 
         # Game status: 1=scheduled, 2=live, 3=final
