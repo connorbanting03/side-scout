@@ -673,6 +673,59 @@ def prefetch_injuries():
         print(f"  ❌ Failed to cache injury report: {e}")
 
 
+def prefetch_top_scorers():
+    """
+    Cache 8: Top 5 scorers per team.
+    Derived entirely from already-cached player_games/*.json and all_rosters.json —
+    no NBA API calls.  Runs in all modes (full, update, quick) since it's instant.
+    Output: cache/team_top_scorers.json  →  { "<team_id>": [ { scorer }, ... ], ... }
+    """
+    print("\n🏅 Computing top scorers per team from cached game logs...")
+
+    rosters_data = load_existing_cache(os.path.join(CACHE_DIR, 'all_rosters.json'))
+    if not rosters_data:
+        print("  ⚠️  all_rosters.json not found — skipping top scorers")
+        return
+
+    all_top_scorers = {}
+
+    for team_id_str, roster in rosters_data.items():
+        scorers = []
+        for player in roster:
+            player_id = player.get('id')
+            if not player_id:
+                continue
+            cache_path = os.path.join(CACHE_DIR, 'player_games', f'{player_id}.json')
+            cached = load_existing_cache(cache_path)
+            if not cached:
+                continue
+            games = cached.get('games', [])
+            if not games:
+                continue
+
+            pts_vals = [g.get('PTS', 0) or 0 for g in games]
+            reb_vals = [g.get('REB', 0) or 0 for g in games]
+            ast_vals = [g.get('AST', 0) or 0 for g in games]
+            min_vals = [g.get('MIN', 0) or 0 for g in games]
+
+            n = len(pts_vals)
+            scorers.append({
+                'id': player_id,
+                'full_name': player.get('full_name', ''),
+                'ppg': round(sum(pts_vals) / n, 1),
+                'rpg': round(sum(reb_vals) / n, 1),
+                'apg': round(sum(ast_vals) / n, 1),
+                'mpg': round(sum(min_vals) / n, 1),
+            })
+
+        scorers.sort(key=lambda x: x['ppg'], reverse=True)
+        all_top_scorers[team_id_str] = scorers[:5]
+        print(f"  ✅ {team_id_str}: {scorers[0]['full_name']} leads at {scorers[0]['ppg']} PPG" if scorers else f"  ⚠️  {team_id_str}: no data")
+
+    save_json(os.path.join(CACHE_DIR, 'team_top_scorers.json'), all_top_scorers)
+    print(f"  📊 Top scorers cached for {len(all_top_scorers)} teams")
+
+
 def main():
     quick_mode = '--quick' in sys.argv
     update_mode = '--update' in sys.argv
@@ -705,21 +758,24 @@ def main():
     generate_value_picks()
 
     if quick_mode:
-        pass  # Done — directory + standings only
+        # quick mode: still recompute top scorers from whatever player caches exist
+        prefetch_top_scorers()
     elif update_mode:
         # Incremental: fetch team games to detect who played,
         # then only update players on those teams
         teams_with_new_games = prefetch_team_games_incremental(all_teams)
         prefetch_player_games_incremental(active_players, teams_with_new_games)
-        # Re-generate value picks with updated data
+        # Re-generate value picks and top scorers with updated data
         generate_value_picks()
+        prefetch_top_scorers()
     else:
         # Full mode: re-fetch everything
         prefetch_rosters(all_teams)
         prefetch_team_games(all_teams)
         prefetch_player_games(active_players)
-        # Re-generate value picks with updated data
+        # Re-generate value picks and top scorers with updated data
         generate_value_picks()
+        prefetch_top_scorers()
 
     elapsed = time.time() - start
     print("\n" + "=" * 60)

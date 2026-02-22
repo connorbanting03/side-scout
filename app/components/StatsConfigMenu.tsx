@@ -24,6 +24,7 @@ export interface StatsConfig {
   oppPpg?: boolean;
   winPct?: boolean;
   totalPoints?: boolean;
+  topScorers?: boolean;
   
   // Charts
   scoringTrend: boolean;
@@ -58,6 +59,7 @@ const DEFAULT_CONFIG: StatsConfig = {
   oppPpg: true,
   winPct: true,
   totalPoints: true,
+  topScorers: true,
   scoringTrend: false,
   statsDistribution: false,
   shootingEfficiency: false,
@@ -184,6 +186,7 @@ export default function StatsConfigMenu({ isOpen, onClose, config, onConfigChang
                     <CheckboxItem label="Opponent PPG" configKey="oppPpg" />
                     <CheckboxItem label="Win Percentage" configKey="winPct" />
                     <CheckboxItem label="Total Points (O/U)" configKey="totalPoints" />
+                    <CheckboxItem label="Top 5 Scorers" configKey="topScorers" />
                   </>
                 )}
               </div>

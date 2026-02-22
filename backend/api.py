@@ -119,6 +119,14 @@ def load_roster_cache(team_id):
     return load_cache_persistent(filepath)
 
 
+def load_top_scorers_cache(team_id):
+    """Load precalculated top-scorers list for a team. Returns list or None."""
+    all_scorers = load_cache_persistent(os.path.join(CACHE_DIR, 'team_top_scorers.json'))
+    if all_scorers and str(team_id) in all_scorers:
+        return all_scorers[str(team_id)]
+    return None
+
+
 def get_player_team_id_from_cache(player_id):
     """Get the player's team_id from cache (avoids CommonPlayerInfo API call).
     Tries player_games cache first, then falls back to rosters."""
@@ -840,6 +848,13 @@ def get_standings():
         error_details = traceback.format_exc()
         print(f"Error in get_standings: {error_details}")
         return jsonify({'error': str(e), 'message': 'Failed to fetch standings', 'details': error_details}), 400
+
+@app.route('/api/team/<int:team_id>/top-scorers', methods=['GET'])
+def get_team_top_scorers(team_id):
+    """Return the top 5 scorers on a team from the precalculated cache."""
+    scorers = load_top_scorers_cache(team_id)
+    return jsonify({'top_scorers': scorers or []})
+
 
 @app.route('/api/team/<int:team_id>/standings', methods=['GET'])
 @retry_with_backoff(max_retries=3, initial_delay=2)

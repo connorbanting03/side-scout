@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, Shield, Settings } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Shield, Settings, Trophy } from 'lucide-react';
 import { Team, TeamGamesData, GameStats } from '../types';
 import StatsConfigMenu, { useStatsConfig } from './StatsConfigMenu';
 import LiveGameSection from './LiveGameSection';
@@ -16,7 +16,9 @@ interface TeamDashboardProps {
 export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
   const [data, setData] = useState<TeamGamesData | null>(null);
   interface TeamStandings { conference?: string; conference_rank?: number; division?: string; division_rank?: number; wins?: number; losses?: number; win_pct?: number; }
+  interface TopScorer { id: number; full_name: string; ppg: number; rpg: number; apg: number; mpg: number; }
   const [standings, setStandings] = useState<TeamStandings | null>(null);
+  const [topScorers, setTopScorers] = useState<TopScorer[]>([]);
   const [loading, setLoading] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
   const [config, setConfig] = useStatsConfig('teamStatsConfig');
@@ -27,9 +29,10 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
       setLoading(true);
       setError(null);
       try {
-        const [gamesResponse, standingsResponse] = await Promise.all([
+        const [gamesResponse, standingsResponse, topScorersResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/team/${team.id}/games?limit=${gameLimit}&season=2025-26`),
-          fetch(`${API_BASE_URL}/api/team/${team.id}/standings`)
+          fetch(`${API_BASE_URL}/api/team/${team.id}/standings`),
+          fetch(`${API_BASE_URL}/api/team/${team.id}/top-scorers?game_limit=${gameLimit}`)
         ]);
         
         if (!gamesResponse.ok) throw new Error('Failed to fetch games data');
@@ -39,6 +42,11 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
         if (standingsResponse.ok) {
           const standingsResult = await standingsResponse.json();
           setStandings(standingsResult);
+        }
+
+        if (topScorersResponse.ok) {
+          const scorersResult = await topScorersResponse.json();
+          setTopScorers(scorersResult.top_scorers || []);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
@@ -323,6 +331,48 @@ export default function TeamDashboard({ team, gameLimit }: TeamDashboardProps) {
         {config.fg3m && <StatCard label="3PM" value={data.averages.FG3M.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'FG3M') : undefined} />}
         {config.turnovers && <StatCard label="Turnovers" value={data.averages.TOV.toFixed(1)} stdDev={config.showStdDev ? calculateStdDev(data.games, 'TOV') : undefined} />}
       </div>
+
+      {/* Top Scorers */}
+      {config.topScorers && topScorers.length > 0 && (
+        <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border-2 border-indigo-200 overflow-hidden">
+          <div className="flex items-center gap-2 md:gap-3 p-4 md:p-5 pb-3">
+            <Trophy className="w-5 h-5 md:w-6 md:h-6 text-amber-500" />
+            <h3 className="text-lg md:text-xl font-bold text-gray-900">
+              Top {topScorers.length} Scorers
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gradient-to-r from-indigo-50 to-blue-50 border-y border-indigo-200">
+                <tr>
+                  <th className="px-3 md:px-5 py-2 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider w-8">#</th>
+                  <th className="px-3 md:px-5 py-2 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Player</th>
+                  <th className="px-3 md:px-5 py-2 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">PPG</th>
+                  <th className="px-3 md:px-5 py-2 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">RPG</th>
+                  <th className="px-3 md:px-5 py-2 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">APG</th>
+                  <th className="px-3 md:px-5 py-2 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider hidden md:table-cell">MPG</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-100">
+                {topScorers.map((scorer, idx) => (
+                  <tr key={scorer.id} className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 transition-colors">
+                    <td className="px-3 md:px-5 py-3 text-xs font-bold text-gray-400">{idx + 1}</td>
+                    <td className="px-3 md:px-5 py-3 font-semibold text-gray-900 text-sm md:text-base whitespace-nowrap">{scorer.full_name}</td>
+                    <td className="px-3 md:px-5 py-3 text-center">
+                      <span className={`font-black text-base md:text-lg ${idx === 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                        {scorer.ppg.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="px-3 md:px-5 py-3 text-center font-semibold text-gray-700 text-sm md:text-base">{scorer.rpg.toFixed(1)}</td>
+                    <td className="px-3 md:px-5 py-3 text-center font-semibold text-gray-700 text-sm md:text-base">{scorer.apg.toFixed(1)}</td>
+                    <td className="px-3 md:px-5 py-3 text-center font-semibold text-gray-700 text-sm md:text-base hidden md:table-cell">{scorer.mpg.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Scoring Trend */}
       {config.scoringTrend && (
