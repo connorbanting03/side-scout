@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Flame, Target, TrendingUp, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { Flame, Target, TrendingUp, ChevronDown, ChevronUp, BarChart3, CircleDollarSign } from 'lucide-react';
 import { API_BASE_URL } from '../lib/config';
 
 interface StatDetail {
@@ -12,6 +12,19 @@ interface StatDetail {
   trend_pct: number;
   recent_std: number;
   cv: number;
+}
+
+interface BettingRec {
+  type: 'OVER' | 'UNDER';
+  stat: string;
+  stat_label: string;
+  line: number;
+  recent_avg: number;
+  season_avg: number;
+  cv: number;
+  trend_pct: number;
+  confidence: 'strong' | 'moderate' | 'lean';
+  reason: string;
 }
 
 interface ValuePick {
@@ -26,6 +39,7 @@ interface ValuePick {
   injury_status: string | null;
   best_trending_stat: string | null;
   top_trending_stats: string[];
+  betting_rec: BettingRec | null;
   stats: {
     PTS: StatDetail;
     REB: StatDetail;
@@ -89,6 +103,53 @@ function StatBadge({ stat, detail }: { stat: string; detail: StatDetail }) {
       <span>{STAT_SHORT[stat]}</span>
       <span className="font-display text-sm">{detail.recent_avg}</span>
       {isUp && <TrendingUp className="w-3 h-3" />}
+    </div>
+  );
+}
+
+const CONFIDENCE_STYLES = {
+  strong: {
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-300',
+    text: 'text-emerald-700',
+    label: 'Strong',
+    dot: 'bg-emerald-500',
+  },
+  moderate: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-300',
+    text: 'text-amber-700',
+    label: 'Moderate',
+    dot: 'bg-amber-500',
+  },
+  lean: {
+    bg: 'bg-slate-50',
+    border: 'border-slate-300',
+    text: 'text-slate-600',
+    label: 'Lean',
+    dot: 'bg-slate-400',
+  },
+};
+
+function BettingRecBadge({ rec }: { rec: BettingRec }) {
+  const style = CONFIDENCE_STYLES[rec.confidence];
+  return (
+    <div className={`flex flex-col gap-1.5 px-3 py-2 rounded-lg border-2 ${style.bg} ${style.border}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <CircleDollarSign className={`w-3.5 h-3.5 ${style.text}`} />
+          <span className={`text-xs font-black uppercase tracking-wider ${style.text}`}>
+            {rec.type} {rec.line} {STAT_SHORT[rec.stat] ?? rec.stat}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${style.text}`}>
+            {style.label}
+          </span>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-500 leading-tight">{rec.reason}</p>
     </div>
   );
 }
@@ -170,6 +231,13 @@ function PickCard({ pick, type, gameLimit, onPlayerClick }: {
             )
           ))}
         </div>
+
+        {/* Betting Recommendation */}
+        {pick.betting_rec && (
+          <div className="mb-2">
+            <BettingRecBadge rec={pick.betting_rec} />
+          </div>
+        )}
 
         {/* PRA combo line */}
         <div className="flex items-center justify-between text-xs">

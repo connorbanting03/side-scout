@@ -416,6 +416,101 @@ def generate_value_picks():
             result.append(a)
         return result
 
+    STAT_LABELS = {
+        'PTS': 'Points', 'REB': 'Rebounds', 'AST': 'Assists',
+        'FG3M': '3-Pointers Made', 'STL': 'Steals', 'BLK': 'Blocks', 'PRA': 'PTS+REB+AST',
+    }
+
+    def make_betting_line(avg):
+        """Round to nearest sportsbook-style half-point line just below the average."""
+        # e.g. avg=26.3 -> 25.5,  avg=24.8 -> 24.5,  avg=5.2 -> 4.5
+        return math.floor(avg - 0.5) + 0.5
+
+    def generate_betting_rec(pick, category):
+        """
+        Generate a betting recommendation for a pick.
+        - Value picks: recommend OVER on the best trending stat with best CV.
+        - Consistent picks: recommend OVER on the stat with the lowest CV.
+        Returns a dict with type, stat, line, confidence, reason, etc.
+        """
+        stats = pick.get('stats', {})
+
+        if category == 'value':
+            # Rank stats by a combined score: trend_pct weighted by consistency
+            candidates = []
+            for s in BETTING_STATS + ['PRA']:
+                d = stats.get(s, {})
+                if not d or d.get('recent_avg', 0) < 1.0:
+                    continue
+                cv = d.get('cv', 99)
+                trend = d.get('trend_pct', 0)
+                if trend <= 0 and cv >= 90:
+                    continue
+                # Score: positive trend is key, penalised by high CV
+                consistency_boost = min(1.0 / max(cv, 0.05), 5.0) if cv < 90 else 0.1
+                score = trend * consistency_boost
+                candidates.append((s, score, d))
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            if not candidates:
+                return None
+            best_stat, _, detail = candidates[0]
+        else:
+            # Consistent picks: lowest CV among meaningful stats
+            candidates = []
+            for s in BETTING_STATS + ['PRA']:
+                d = stats.get(s, {})
+                if not d or d.get('recent_avg', 0) < 1.0:
+                    continue
+                cv = d.get('cv', 99)
+                if cv >= 90:
+                    continue
+                candidates.append((s, cv, d))
+            candidates.sort(key=lambda x: x[1])  # lowest CV first
+            if not candidates:
+                return None
+            best_stat, _, detail = candidates[0]
+
+        recent_avg = detail.get('recent_avg', 0)
+        season_avg = detail.get('season_avg', 0)
+        cv = detail.get('cv', 99)
+        trend_pct = detail.get('trend_pct', 0)
+        recent_std = detail.get('recent_std', 0)
+
+        line = make_betting_line(recent_avg)
+        if line < 0.5:
+            return None
+
+        # Confidence tiers
+        if cv < 0.25:
+            confidence = 'strong'
+        elif cv < 0.40:
+            confidence = 'moderate'
+        else:
+            confidence = 'lean'
+
+        # Build a short human-readable reason
+        stat_label = STAT_LABELS.get(best_stat, best_stat)
+        if category == 'value':
+            if trend_pct > 0:
+                reason = f"Trending +{trend_pct:.1f}% above baseline with {cv:.2f} CV"
+            else:
+                reason = f"High volume ({recent_avg:.1f} avg) with {cv:.2f} CV"
+        else:
+            reason = f"CV of {cv:.2f} — one of the most predictable {stat_label.lower()} outputs"
+
+        return {
+            'type': 'OVER',
+            'stat': best_stat,
+            'stat_label': stat_label,
+            'line': line,
+            'recent_avg': recent_avg,
+            'season_avg': season_avg,
+            'cv': round(cv, 3),
+            'trend_pct': round(trend_pct, 1),
+            'confidence': confidence,
+            'reason': reason,
+        }
+
     def slim_pick(pick, rank, category):
         """Trim to essential fields for the frontend."""
         # Best trending stat: highest trend_pct; fallback to highest recent_avg for season mode
@@ -441,6 +536,9 @@ def generate_value_picks():
             displayable.sort(key=lambda s: pick['stats'][s].get('recent_avg', 0), reverse=True)
         top_trending_stats = displayable[:4]
 
+        # Generate betting recommendation
+        betting_rec = generate_betting_rec(pick, category)
+
         return {
             'rank': rank,
             'player_id': pick['player_id'],
@@ -453,6 +551,7 @@ def generate_value_picks():
             'consistency_score': pick.get('consistency_score', 0),
             'best_trending_stat': best_stat,
             'top_trending_stats': top_trending_stats,
+            'betting_rec': betting_rec,
             'stats': {
                 'PTS': pick['stats']['PTS'],
                 'REB': pick['stats']['REB'],
