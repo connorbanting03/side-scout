@@ -41,18 +41,14 @@ function loadSchedule(): Promise<ScheduleGame[]> {
   return schedulePromise;
 }
 
-/** Check if a game belongs to today's calendar date (ET, approximated by local clock).
+/** Check if a game belongs to today's calendar date (ET).
  *  The gameEt field is in the format "YYYY-MM-DDTHH:MM:SSZ" in Eastern time. */
 function isGameToday(game: ScheduleGame): boolean {
   const gameEt = game.gameEt || game.gameTimeUTC || '';
   if (!gameEt) return true; // no date info — assume today to be safe
   const gameDate = gameEt.slice(0, 10); // "YYYY-MM-DD"
-  // Get today in ET: UTC-5 (EST) or UTC-4 (EDT). Use a rough -5h offset;
-  // the important thing is we don't show games from clearly different dates.
-  const now = new Date();
-  const etOffset = -5; // close enough for calendar-day comparison
-  const etNow = new Date(now.getTime() + (now.getTimezoneOffset() + etOffset * 60) * 60000);
-  const todayStr = etNow.toISOString().slice(0, 10);
+  // Use Intl API for correct ET date (handles EST/EDT automatically)
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   return gameDate === todayStr;
 }
 

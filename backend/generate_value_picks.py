@@ -438,7 +438,7 @@ def generate_value_picks():
         if category == 'value':
             # Rank stats by a combined score: trend_pct weighted by consistency
             candidates = []
-            for s in BETTING_STATS + ['PRA']:
+            for s in BETTING_STATS:
                 d = stats.get(s, {})
                 if not d or d.get('recent_avg', 0) < 1.0:
                     continue
@@ -457,7 +457,7 @@ def generate_value_picks():
         else:
             # Consistent picks: lowest CV among meaningful stats
             candidates = []
-            for s in BETTING_STATS + ['PRA']:
+            for s in BETTING_STATS:
                 d = stats.get(s, {})
                 if not d or d.get('recent_avg', 0) < 1.0:
                     continue
