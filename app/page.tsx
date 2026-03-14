@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Menu, BarChart3, TrendingUp, Radio, Target, Search } from 'lucide-react';
+import Link from 'next/link';
 import PlayerSearch from './components/PlayerSearch';
 import { loadDirectory, type Directory } from './components/PlayerSearch';
 import PlayerDashboard from './components/PlayerDashboard';
 import TeamDashboard from './components/TeamDashboard';
 import ValuePicks from './components/ValuePicks';
+import Footer from './components/Footer';
 import { Player, Team } from './types';
 
 interface PlayerTab {
@@ -271,7 +273,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0 relative" style={{height: 'calc(100dvh - 120px)'}}>
+      <div className="flex flex-1 min-h-0 relative" style={activeTab ? {height: 'calc(100dvh - 120px)'} : undefined}>
         {/* Mobile sidebar backdrop */}
         {tabs.length > 0 && mobileSidebarOpen && (
           <div 
@@ -388,8 +390,51 @@ export default function Home() {
               )
             ) : (
               <div className="w-full">
+                {/* Hero Section — static, crawlable content */}
+                <section className="text-center mb-8 md:mb-10">
+                  <h2 className="font-display text-2xl md:text-4xl font-bold text-gray-900 mb-3">
+                    Real-Time NBA Stats & Performance Trends
+                  </h2>
+                  <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                    Search any NBA player or team to explore detailed game logs, shooting splits, 
+                    trend analysis, and live box scores — completely free, no sign-up required.
+                  </p>
+                </section>
+
+                {/* Feature highlights — static HTML for Google to crawl */}
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8 md:mb-10">
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center mx-auto mb-2">
+                      <Search className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <h3 className="font-bold text-sm text-gray-900 mb-1">Player Search</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed">Look up any active NBA player&apos;s recent stats instantly</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mx-auto mb-2">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <h3 className="font-bold text-sm text-gray-900 mb-1">Trend Analysis</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed">Compare recent performance vs. season averages</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
+                    <div className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center mx-auto mb-2">
+                      <Radio className="w-4 h-4 text-rose-600" />
+                    </div>
+                    <h3 className="font-bold text-sm text-gray-900 mb-1">Live Games</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed">Real-time box scores updated every 30 seconds</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-2">
+                      <Target className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <h3 className="font-bold text-sm text-gray-900 mb-1">Value Picks</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed">Algorithm-powered picks based on trending stats</p>
+                  </div>
+                </section>
+
+                {/* Value Picks (dynamic) */}
                 <ValuePicks gameLimit={gameLimit} onPlayerClick={(playerId, playerName) => {
-                  // Try to resolve from directory, otherwise create a minimal Player
                   const dir = directoryRef.current;
                   let player: Player | undefined;
                   if (dir) {
@@ -400,7 +445,61 @@ export default function Home() {
                   }
                   addPlayer(player);
                 }} />
-                <div className="text-center mt-6">
+
+                {/* How it works — more static content for crawlers */}
+                <section className="mt-10 mb-8">
+                  <h2 className="font-display text-xl md:text-2xl font-bold text-gray-900 text-center mb-6">
+                    How Side Scout Works
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm mb-3">1</div>
+                      <h3 className="font-bold text-gray-900 mb-1">Search</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        Type any NBA player or team name into the search bar. Results appear instantly as you type.
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm mb-3">2</div>
+                      <h3 className="font-bold text-gray-900 mb-1">Analyse</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        View game logs, shooting splits, averages, and performance charts. Adjust the game window to focus on any timeframe.
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm mb-3">3</div>
+                      <h3 className="font-bold text-gray-900 mb-1">Compare</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        Open multiple players and teams in tabs. Switch between them instantly using the sidebar.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* SEO text block */}
+                <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 md:p-8 mb-6">
+                  <h2 className="font-display text-lg md:text-xl font-bold text-gray-900 mb-3">
+                    Your Free NBA Statistics Dashboard
+                  </h2>
+                  <div className="space-y-3 text-sm text-gray-600 leading-relaxed">
+                    <p>
+                      Side Scout gives you comprehensive NBA stats coverage for the current season. Track points, rebounds, 
+                      assists, steals, blocks, turnovers, field goal percentage, three-point shooting, free throw efficiency, 
+                      and plus/minus for every active player in the league.
+                    </p>
+                    <p>
+                      For teams, view offensive and defensive ratings, win/loss records, and head-to-head matchup data. 
+                      Our Value Picks algorithm analyses player performance over configurable windows to highlight athletes 
+                      who are outperforming their baselines with statistical consistency.
+                    </p>
+                    <p>
+                      Whether you&apos;re building a fantasy basketball lineup, researching player matchups, or simply following 
+                      your favourite team, Side Scout provides the data you need in a fast, mobile-friendly interface.
+                    </p>
+                  </div>
+                </section>
+
+                <div className="text-center">
                   <p className="text-xs text-gray-400 font-medium">
                     Search a player or team above to explore detailed stats
                   </p>
@@ -410,6 +509,9 @@ export default function Home() {
           </div>
         </main>
       </div>
+
+      {/* Footer — only visible on landing page (no active tab) */}
+      {!activeTab && <Footer />}
     </div>
   );
 }
