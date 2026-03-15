@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
+import AdBanner from "./components/AdBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -84,17 +85,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} antialiased`}
       >
         {children}
-        {/* Shopify Footer Banner */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-50/80 backdrop-blur-sm">
-          <a
-            href="https://shopify.pxf.io/m4OXk1"
-            target="_blank"
-            rel="noopener noreferrer sponsored"
-            className="flex items-center justify-center w-full py-1 px-4 hover:opacity-80 transition-opacity"
-          >
-            <img src="/ShopifyAddImg.png" alt="Try Shopify free" className="h-7 md:h-9 w-auto object-contain opacity-70" />
-          </a>
-        </div>
+        <AdBanner />
       </body>
     </html>
   );
