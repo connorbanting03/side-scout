@@ -9,8 +9,8 @@ export default function AdBanner() {
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50">
-      <div className="relative inline-flex w-full justify-center">
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center">
+      <div className="relative">
         <a
           href="https://shopify.pxf.io/m4OXk1"
           target="_blank"
@@ -25,7 +25,7 @@ export default function AdBanner() {
         </a>
         <button
           onClick={() => setDismissed(true)}
-          className="absolute -top-2 -right-2 md:right-auto md:-top-2 md:-left-2 bg-gray-800/70 hover:bg-gray-800 text-white rounded-full p-0.5 transition-colors"
+          className="absolute top-0 right-0 bg-gray-800/70 hover:bg-gray-800 text-white rounded-full p-0.5 transition-colors"
           aria-label="Close ad"
         >
           <X className="w-3 h-3" />
