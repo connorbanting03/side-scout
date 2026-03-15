@@ -84,6 +84,17 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} antialiased`}
       >
         {children}
+        {/* Shopify Footer Banner */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-indigo-700 via-blue-700 to-cyan-700 border-t border-indigo-500/40 shadow-[0_-2px_10px_rgba(0,0,0,0.15)]">
+          <a
+            href="https://shopify.pxf.io/m4OXk1"
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="flex items-center justify-center w-full py-1 px-4 hover:opacity-90 transition-opacity"
+          >
+            <img src="/ShopifyAddImg.png" alt="Try Shopify free" className="h-8 md:h-10 w-auto object-contain" />
+          </a>
+        </div>
       </body>
     </html>
   );

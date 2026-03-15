@@ -284,7 +284,7 @@ export default function Home() {
         {tabs.length > 0 && (
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            className="fixed bottom-5 left-4 z-50 md:hidden bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-2xl shadow-xl flex items-center gap-2 transition-all active:scale-95"
+            className="fixed bottom-14 left-4 z-50 md:hidden bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-2xl shadow-xl flex items-center gap-2 transition-all active:scale-95"
           >
             {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             <span className="text-xs font-bold bg-white/20 px-1.5 py-0.5 rounded-lg">{tabs.length}</span>
@@ -373,7 +373,7 @@ export default function Home() {
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-          <div className="max-w-7xl mx-auto p-3 pb-24 md:pb-8 md:p-8">
+          <div className="max-w-7xl mx-auto p-3 pb-28 md:pb-14 md:p-8">
             {activeTab ? (
               tabs.find(tab => tab.id === activeTab)?.type === 'player' ? (
                 <PlayerDashboard 
